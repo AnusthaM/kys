@@ -1,49 +1,40 @@
-"use client"
+"use client";
 
-import { DocumentUploadFieldProps } from "@/lib/types";
 import { useRef, useState } from "react";
-import { Card } from "../ui/card";
-import { Camera, Upload, X, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import Image from 'next/image';
-import CameraCaptureDialog from "./camera-capture-dialog";
+import { Card } from "@/components/ui/card";
+import { Camera, Upload, X, FileText } from "lucide-react";
+import { CameraCaptureDialog } from "./camera-capture-dialog";
+import Image from "next/image";
 
-export function DocumentUploadield({
-    label,
-    value,
-    onChange,
-    allowCamera,
-    error,
-}: DocumentUploadFieldProps) {
-    const inputRef = useRef<HTMLInputElement>(null);
-    const [cameraOpen, setCameraOpen] = useState(false);
+interface DocumentUploadFieldProps {
+  value?: File;
+  onChange: (file?: File) => void;
+  allowCamera?: boolean;
+  accept?: string;
+}
 
-    const previewUrl = value && value.type.startsWith("image/") ? URL.createObjectURL(value) : null;
-
+export function DocumentUploadField({ value, onChange, allowCamera, accept = "image/*,.pdf" }: DocumentUploadFieldProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const previewUrl = value && value.type.startsWith("image/") ? URL.createObjectURL(value) : null;
 
   return (
-    <div>
-        <p className="text-sm">
-            {label}
-        </p>
-
-        <Card className="flex flex-col items-center justify-center gap-3 border-dashed p-4">
+    <div className="space-y-2">
+      <Card className="flex flex-col items-center justify-center gap-3 border-dashed p-4">
         {value ? (
           <div className="flex w-full items-center justify-between gap-2">
             <div className="flex items-center gap-2 truncate">
               {previewUrl ? (
-                <Image
-                src={previewUrl}
-                alt={label}
-                fill
-                className="h-12 w-12 rounded object-cover"
-                />
+                <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded">
+                  <Image src={previewUrl} alt="" fill className="object-cover" unoptimized />
+                </div>
               ) : (
-                <FileText className="h-8 w-8 text-muted-foreground" />
+                <FileText className="h-8 w-8 shrink-0 text-muted-foreground" />
               )}
               <span className="truncate text-sm">{value.name}</span>
             </div>
-            <Button size="icon" variant="ghost" onClick={() => onChange(undefined)}>
+            <Button type="button" size="icon" variant="ghost" onClick={() => onChange(undefined)}>
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -59,26 +50,12 @@ export function DocumentUploadield({
             )}
           </div>
         )}
-
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*,.pdf"
-          className="hidden"
-          onChange={(e) => onChange(e.target.files?.[0])}
-        />
+        <input ref={inputRef} type="file" accept={accept} className="hidden" onChange={(e) => onChange(e.target.files?.[0])} />
       </Card>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
       {allowCamera && (
-        <CameraCaptureDialog
-        open={cameraOpen}
-        onOpenChange={setCameraOpen}
-        onCapture={(file)=> onChange(file)}
-        fileName={`${label.toLowerCase().replace(/\s+/g, "-")}.jpg`}
-        />
+        <CameraCaptureDialog open={cameraOpen} onOpenChange={setCameraOpen} onCapture={(file) => onChange(file)} fileName="capture.jpg" />
       )}
     </div>
-  )
+  );
 }

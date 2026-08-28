@@ -1,5 +1,5 @@
 import {Control} from "react-hook-form"
-import { KycFormValue } from './kyc-schema';
+import { KycFormValues } from './kyc-schema';
 
 export interface CameraCaptureDialogProps{
     open: boolean;
@@ -9,15 +9,15 @@ export interface CameraCaptureDialogProps{
 }
 
 export interface DocumentUploadFieldProps {
-  label: string;
   value?: File;
   onChange: (file?: File) => void;
   allowCamera?: boolean;
-  error?: string;
+  accept?: string; // e.g. "image/*" or "application/pdf"
 }
 
+
 export interface DocumentEntryProps {
-  control: Control<KycFormValue>;
+  control: Control<KycFormValues>;
   index: number;
   usedTypes: string[];
   onRemove: () => void;
