@@ -290,8 +290,8 @@ export function DrawingCanvas() {
 
   const getCanvasDimensions = useCallback(() => {
     if (typeof window === "undefined") return { width: 1000, height: 650 };
-    const maxWidth = Math.min(window.innerWidth - 32, 1200);
-    const maxHeight = Math.min(window.innerHeight - 280, 700);
+    const maxWidth = Math.min(window.innerWidth - 32, 1400);
+    const maxHeight = Math.min(window.innerHeight - 280, 800);
     return { width: maxWidth, height: maxHeight };
   }, []);
 
@@ -611,7 +611,7 @@ export function DrawingCanvas() {
   const cursorClass = tool === "fill" ? "cursor-copy" : "cursor-crosshair";
 
   return (
-    <div className="flex flex-col items-center gap-4 p-4 max-w-6xl mx-auto">
+    <div className="flex flex-col items-center gap-4 p-4 max-w-[1600px] mx-auto min-h-screen">
       <h1 className="text-2xl font-bold text-gray-800">Drawing Canvas</h1>
 
       {/* Toolbar */}
@@ -734,15 +734,16 @@ export function DrawingCanvas() {
         </Button>
       </div>
 
-      {/* Canvas */}
-      <div className="relative w-full bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
+      {/* Canvas - now responsive, fills available width */}
+      <div className="relative w-full max-w-[1600px] bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden flex items-center justify-center">
         <canvas
           ref={canvasRef}
-          className={`touch-none w-full h-auto ${cursorClass}`}
+          className={`touch-none w-full h-auto max-h-[calc(100vh-280px)] ${cursorClass}`}
           style={{
             width: "100%",
             height: "auto",
-            aspectRatio: `${canvasSize.width}/${canvasSize.height}`,
+            maxHeight: "calc(100vh - 280px)",
+            objectFit: "contain",
           }}
           onMouseDown={startDrawing}
           onMouseMove={draw}
@@ -754,7 +755,7 @@ export function DrawingCanvas() {
           onTouchEnd={finishDrawing}
         />
 
-        <div className="absolute bottom-2 right-2 text-xs text-gray-400 pointer-events-none">
+        <div className="absolute bottom-2 right-2 text-xs text-gray-400 pointer-events-none bg-white/70 px-2 py-1 rounded">
           {tool === "shape" && "Click and drag to draw shape"}
           {tool === "fill" && "Click an area to fill it"}
           {(tool === "pen" || tool === "eraser") && "Click and drag to draw | Scroll to change brush size"}

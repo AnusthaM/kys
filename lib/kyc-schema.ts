@@ -184,3 +184,21 @@ export const MUNICIPALITY_OPTIONS = [
   { value: "municipality", label: "Municipality" },
   { value: "rural-municipality", label: "Rural Municipality" },
 ];
+
+export interface ScannedKycData {
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  dob?: string;
+  gender?: string;
+  nationality?: string;
+  documentType?: DocumentTypeValue;
+  address?: Partial<{
+    country: string;
+    province: string;
+    district: string;
+    municipality: string;
+    city: string;
+    ward_no: string;
+  }>;
+}

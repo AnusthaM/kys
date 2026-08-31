@@ -31,7 +31,9 @@ import { DocumentEntry } from "./document-entry";
 import { SectionCard } from "./section-card";
 import { StepProgress } from "./step-progress";
 import { submitKyc, KycActionState } from "@/app/kyc/actions";
+import { ScannedKycData } from "@/lib/kyc-schema";
 import { toast } from "sonner";
+import ScanStep from "./scan-step";
 import {
   Plus,
   UserRound,
@@ -59,44 +61,112 @@ const ADDRESS_KEYS = ["permanentAddress", "temporaryAddress"] as const;
 const EXTRA_FIELDS = ["gender", "martial_status", "occupation"] as const;
 
 const STEP_META = [
-  { label: "Personal", icon: UserRound, title: "Personal Details", description: "Your legal name and basic information" },
-  { label: "Family", icon: Users, title: "Family Details", description: "Parent and grandparent information" },
-  { label: "Address", icon: MapPinned, title: "Address", description: "Permanent and current residence" },
-  { label: "Photo & Signature", icon: ImagePlus, title: "Photo & Signature", description: "A clear photo of your face and your signature" },
-  { label: "Documents", icon: FileStack, title: "Identity Documents", description: "At least one government-issued document" },
+  {
+    label: "Personal",
+    icon: UserRound,
+    title: "Personal Details",
+    description: "Your legal name and basic information",
+  },
+  {
+    label: "Family",
+    icon: Users,
+    title: "Family Details",
+    description: "Parent and grandparent information",
+  },
+  {
+    label: "Address",
+    icon: MapPinned,
+    title: "Address",
+    description: "Permanent and current residence",
+  },
+  {
+    label: "Photo & Signature",
+    icon: ImagePlus,
+    title: "Photo & Signature",
+    description: "A clear photo of your face and your signature",
+  },
+  {
+    label: "Documents",
+    icon: FileStack,
+    title: "Identity Documents",
+    description: "At least one government-issued document",
+  },
 ];
 
 export function KycForm() {
   const [state, setState] = useState<KycActionState>({ status: "idle" });
+  const [showScan, setShowScan] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [step, setStep] = useState(0);
   const isLastStep = step === STEP_META.length - 1;
 
-  const { control, handleSubmit, formState, reset, setValue, trigger } = useForm<KycFormValues>({
-    resolver: zodResolver(kycSchema),
-    mode: "onBlur",
-    defaultValues: {
-      firstName: "",
-      middleName: "",
-      lastName: "",
-      father: emptyPerson,
-      mother: emptyPerson,
-      grandFather: emptyPerson,
-      grandMother: emptyPerson,
-      dob: "",
-      email: "",
-      phone: "",
-      nationality: "",
-      gender: "",
-      martial_status: "",
-      occupation: "",
-      permanentAddress: emptyAddress,
-      temporaryAddress: emptyAddress,
-      documents: [],
-    },
-  });
+  const { control, handleSubmit, formState, reset, setValue, trigger } =
+    useForm<KycFormValues>({
+      resolver: zodResolver(kycSchema),
+      mode: "onBlur",
+      defaultValues: {
+        firstName: "",
+        middleName: "",
+        lastName: "",
+        father: emptyPerson,
+        mother: emptyPerson,
+        grandFather: emptyPerson,
+        grandMother: emptyPerson,
+        dob: "",
+        email: "",
+        phone: "",
+        nationality: "",
+        gender: "",
+        martial_status: "",
+        occupation: "",
+        permanentAddress: emptyAddress,
+        temporaryAddress: emptyAddress,
+        documents: [],
+      },
+    });
 
-  const { fields, append, remove } = useFieldArray({ control, name: "documents" });
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "documents",
+  });
+  function applyScannedData(data: ScannedKycData, scannedFile: File) {
+    (
+      [
+        "firstName",
+        "middleName",
+        "lastName",
+        "dob",
+        "gender",
+        "nationality",
+      ] as const
+    ).forEach((key) => {
+      const value = data[key];
+      if (value) setValue(key, value);
+    });
+
+    if (data.address) {
+      (
+        Object.entries(data.address) as [
+          keyof NonNullable<ScannedKycData["address"]>,
+          string,
+        ][]
+      ).forEach(([key, value]) => {
+        if (value) setValue(`permanentAddress.${key}`, value);
+      });
+    }
+
+    if (data.documentType) {
+      append({
+        type: data.documentType,
+        format: "image",
+        front: scannedFile,
+        back: undefined,
+        file: undefined,
+      });
+    }
+
+    setShowScan(false);
+  }
   const documents = useWatch({ control, name: "documents" }) ?? [];
   const usedTypes = documents.map((d) => d?.type).filter(Boolean) as string[];
   const watched = useWatch({ control });
@@ -106,24 +176,36 @@ export function KycForm() {
     () => [
       {
         label: "Personal",
-        complete: has(watched.firstName) && has(watched.lastName) && has(watched.dob) && has(watched.gender),
+        complete:
+          has(watched.firstName) &&
+          has(watched.lastName) &&
+          has(watched.dob) &&
+          has(watched.gender),
       },
       {
         label: "Family",
-        complete: has(watched.father?.firstName) && has(watched.mother?.firstName),
+        complete:
+          has(watched.father?.firstName) && has(watched.mother?.firstName),
       },
       {
         label: "Address",
-        complete: has(watched.permanentAddress?.country) && has(watched.temporaryAddress?.country),
+        complete:
+          has(watched.permanentAddress?.country) &&
+          has(watched.temporaryAddress?.country),
       },
-      { label: "Photo & Signature", complete: !!watched.photo && !!watched.signature },
+      {
+        label: "Photo & Signature",
+        complete: !!watched.photo && !!watched.signature,
+      },
       { label: "Documents", complete: (watched.documents?.length ?? 0) > 0 },
     ],
     [watched],
   );
 
   async function goNext() {
-    const valid = await trigger(STEP_FIELDS[step] as never, { shouldFocus: true });
+    const valid = await trigger(STEP_FIELDS[step] as never, {
+      shouldFocus: true,
+    });
     if (valid) setStep((s) => Math.min(s + 1, STEP_META.length - 1));
   }
   const goBack = () => setStep((s) => Math.max(s - 1, 0));
@@ -132,7 +214,9 @@ export function KycForm() {
   function onValid(values: KycFormValues) {
     const formData = new FormData();
 
-    PERSONAL_FIELDS.forEach(({ name }) => formData.append(name, values[name] ?? ""));
+    PERSONAL_FIELDS.forEach(({ name }) =>
+      formData.append(name, values[name] ?? ""),
+    );
     EXTRA_FIELDS.forEach((name) => formData.append(name, values[name]));
 
     FAMILY_KEYS.forEach((key) => {
@@ -143,7 +227,9 @@ export function KycForm() {
     });
 
     ADDRESS_KEYS.forEach((section) =>
-      Object.entries(values[section]).forEach(([key, val]) => formData.append(`${section}.${key}`, val as string)),
+      Object.entries(values[section]).forEach(([key, val]) =>
+        formData.append(`${section}.${key}`, val as string),
+      ),
     );
 
     formData.append("photo", values.photo);
@@ -182,111 +268,187 @@ export function KycForm() {
         Identity Verification
       </div>
 
-      <StepProgress steps={stepStatus} current={step} onStepClick={goToStep} />
+      {showScan ? (
+        <ScanStep
+          onScanned={applyScannedData}
+          onSkip={() => setShowScan(false)}
+        />
+      ) : (
+        <>
+          <StepProgress
+            steps={stepStatus}
+            current={step}
+            onStepClick={goToStep}
+          />
+          <form
+            onSubmit={(e) => {
+              if (!isLastStep) return e.preventDefault();
+              handleSubmit(onValid)(e);
+            }}
+            className="space-y-6 pt-6"
+          >
+            <SectionCard
+              step={String(step + 1)}
+              icon={meta.icon}
+              title={meta.title}
+              description={meta.description}
+            >
+              {step === 0 && (
+                <FieldGroup className="grid gap-4 sm:grid-cols-2">
+                  {PERSONAL_FIELDS.map((f) => (
+                    <TextField
+                      key={f.name}
+                      control={control}
+                      name={f.name}
+                      label={f.label}
+                      type={f.type}
+                    />
+                  ))}
+                  {SELECT_FIELDS.map((f) => (
+                    <SelectField
+                      key={f.name}
+                      control={control}
+                      name={f.name}
+                      label={f.label}
+                      options={f.options}
+                    />
+                  ))}
+                </FieldGroup>
+              )}
 
-      <form
-        onSubmit={(e) => {
-          if (!isLastStep) return e.preventDefault();
-          handleSubmit(onValid)(e);
-        }}
-        className="space-y-6 pt-6"
-      >
-        <SectionCard step={String(step + 1)} icon={meta.icon} title={meta.title} description={meta.description}>
-          {step === 0 && (
-            <FieldGroup className="grid gap-4 sm:grid-cols-2">
-              {PERSONAL_FIELDS.map((f) => (
-                <TextField key={f.name} control={control} name={f.name} label={f.label} type={f.type} />
-              ))}
-              {SELECT_FIELDS.map((f) => (
-                <SelectField key={f.name} control={control} name={f.name} label={f.label} options={f.options} />
-              ))}
-            </FieldGroup>
-          )}
+              {step === 1 && (
+                <div className="space-y-6">
+                  {FAMILY_GROUPS.map((g) => (
+                    <PersonNameFields
+                      key={g.key}
+                      control={control}
+                      prefix={g.key}
+                      label={g.label}
+                      optional={g.optional}
+                    />
+                  ))}
+                </div>
+              )}
 
-          {step === 1 && (
-            <div className="space-y-6">
-              {FAMILY_GROUPS.map((g) => (
-                <PersonNameFields key={g.key} control={control} prefix={g.key} label={g.label} optional={g.optional} />
-              ))}
-            </div>
-          )}
+              {step === 2 && (
+                <AddressFields control={control} setValue={setValue} />
+              )}
 
-          {step === 2 && <AddressFields control={control} setValue={setValue} />}
+              {step === 3 && (
+                <div className="space-y-6">
+                  <Controller
+                    name="photo"
+                    control={control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel>Photo</FieldLabel>
+                        <DocumentUploadField
+                          value={field.value}
+                          onChange={field.onChange}
+                          allowCamera
+                        />
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    name="signature"
+                    control={control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel>Signature</FieldLabel>
+                        <SignatureField
+                          value={field.value}
+                          onChange={field.onChange}
+                        />
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
+                  />
+                </div>
+              )}
 
-          {step === 3 && (
-            <div className="space-y-6">
-              <Controller
-                name="photo"
-                control={control}
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel>Photo</FieldLabel>
-                    <DocumentUploadField value={field.value} onChange={field.onChange} allowCamera />
-                    {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-                  </Field>
-                )}
-              />
-              <Controller
-                name="signature"
-                control={control}
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel>Signature</FieldLabel>
-                    <SignatureField value={field.value} onChange={field.onChange} />
-                    {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-                  </Field>
-                )}
-              />
-            </div>
-          )}
+              {step === 4 && (
+                <FieldSet className="gap-3">
+                  <div className="flex items-center justify-between">
+                    <FieldLegend variant="label" className="sr-only">
+                      Documents
+                    </FieldLegend>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={usedTypes.length >= DOCUMENT_TYPES.length}
+                      onClick={() =>
+                        append({
+                          type: "",
+                          format: "image",
+                          front: undefined,
+                          back: undefined,
+                          file: undefined,
+                        })
+                      }
+                    >
+                      <Plus className="mr-2 h-4 w-4" /> Add document
+                    </Button>
+                  </div>
 
-          {step === 4 && (
-            <FieldSet className="gap-3">
-              <div className="flex items-center justify-between">
-                <FieldLegend variant="label" className="sr-only">Documents</FieldLegend>
+                  {fields.length === 0 && (
+                    <p className="rounded-md border border-dashed py-6 text-center text-sm text-muted-foreground">
+                      No documents added yet.
+                    </p>
+                  )}
+
+                  {fields.map((field, index) => (
+                    <DocumentEntry
+                      key={field.id}
+                      control={control}
+                      index={index}
+                      usedTypes={usedTypes}
+                      onRemove={() => remove(index)}
+                    />
+                  ))}
+                  {formState.errors.documents?.root && (
+                    <p className="text-sm text-destructive">
+                      {formState.errors.documents.root.message}
+                    </p>
+                  )}
+                </FieldSet>
+              )}
+            </SectionCard>
+
+            <div className="flex items-center justify-between gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={goBack}
+                disabled={step === 0}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
+              </Button>
+
+              {isLastStep ? (
                 <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={usedTypes.length >= DOCUMENT_TYPES.length}
-                  onClick={() => append({ type: "", format: "image", front: undefined, back: undefined, file: undefined })}
+                  type="submit"
+                  disabled={isPending}
+                  size="lg"
+                  className="flex-1"
                 >
-                  <Plus className="mr-2 h-4 w-4" /> Add document
+                  {isPending ? "Submitting..." : "Submit for Verification"}
                 </Button>
-              </div>
-
-              {fields.length === 0 && (
-                <p className="rounded-md border border-dashed py-6 text-center text-sm text-muted-foreground">
-                  No documents added yet.
-                </p>
+              ) : (
+                <Button type="button" onClick={goNext} className="flex-1">
+                  Next <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
               )}
-
-              {fields.map((field, index) => (
-                <DocumentEntry key={field.id} control={control} index={index} usedTypes={usedTypes} onRemove={() => remove(index)} />
-              ))}
-              {formState.errors.documents?.root && (
-                <p className="text-sm text-destructive">{formState.errors.documents.root.message}</p>
-              )}
-            </FieldSet>
-          )}
-        </SectionCard>
-
-        <div className="flex items-center justify-between gap-3">
-          <Button type="button" variant="outline" onClick={goBack} disabled={step === 0}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back
-          </Button>
-
-          {isLastStep ? (
-            <Button type="submit" disabled={isPending} size="lg" className="flex-1">
-              {isPending ? "Submitting..." : "Submit for Verification"}
-            </Button>
-          ) : (
-            <Button type="button" onClick={goNext} className="flex-1">
-              Next <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </form>
+            </div>
+          </form>
+        </>
+      )}
     </div>
   );
 }

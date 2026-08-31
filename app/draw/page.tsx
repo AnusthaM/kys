@@ -1,4 +1,3 @@
-// In your page or component
 import { DrawingCanvas } from "@/components/extra/draw2";
 
 export default function Page() {
