@@ -2,557 +2,721 @@
 
 import { useRef, useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { 
-  Pencil, 
-  Eraser, 
-  Square, 
-  Circle, 
+import {
+  Pencil,
+  Eraser,
+  Square,
+  Circle,
+  Egg,
+  Triangle,
+  Star,
+  ArrowRight,
   Minus,
+  PaintBucket,
   Trash2,
   Download,
   Undo,
-  Redo
+  Redo,
 } from "lucide-react";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface DrawingPoint {
   x: number;
   y: number;
 }
 
-interface DrawingStroke {
+type ShapeType = "circle" | "ellipse" | "square" | "triangle" | "line" | "arrow" | "star";
+
+/** A freehand pen or eraser stroke. */
+interface PathStroke {
+  kind: "path";
+  tool: "pen" | "eraser";
   points: DrawingPoint[];
   color: string;
   brushSize: number;
-  tool: 'pen' | 'eraser';
-  shape?: 'circle' | 'square' | 'line'; // For shape strokes
 }
 
+/** A shape (circle, square, arrow, etc.) drawn between two corner points. */
+interface ShapeStroke {
+  kind: "shape";
+  shape: ShapeType;
+  start: DrawingPoint;
+  end: DrawingPoint;
+  color: string;
+  brushSize: number;
+  filled: boolean;
+}
+
+/** A paint-bucket fill applied at a single point. */
+interface FillStroke {
+  kind: "fill";
+  point: DrawingPoint;
+  color: string;
+}
+
+type DrawingStroke = PathStroke | ShapeStroke | FillStroke;
+
+type ToolType = "pen" | "eraser" | "shape" | "fill";
+
+const SHAPES: { type: ShapeType; icon: typeof Circle; label: string }[] = [
+  { type: "circle", icon: Circle, label: "Circle" },
+  { type: "ellipse", icon: Egg, label: "Ellipse" },
+  { type: "square", icon: Square, label: "Square" },
+  { type: "triangle", icon: Triangle, label: "Triangle" },
+  { type: "star", icon: Star, label: "Star" },
+  { type: "line", icon: Minus, label: "Line" },
+  { type: "arrow", icon: ArrowRight, label: "Arrow" },
+];
+
+const COLOR_PRESETS = [
+  "#000000",
+  "#ffffff",
+  "#ef4444",
+  "#f97316",
+  "#eab308",
+  "#22c55e",
+  "#3b82f6",
+  "#a855f7",
+];
+
+// ---------------------------------------------------------------------------
+// Pure drawing helpers (no React, easy to reason about / test)
+// ---------------------------------------------------------------------------
+
+/** Traces the path for a shape between two corner points onto a 2D context. */
+function traceShapePath(ctx: CanvasRenderingContext2D, shape: ShapeType, start: DrawingPoint, end: DrawingPoint) {
+  const width = end.x - start.x;
+  const height = end.y - start.y;
+  const cx = (start.x + end.x) / 2;
+  const cy = (start.y + end.y) / 2;
+
+  ctx.beginPath();
+
+  switch (shape) {
+    case "circle": {
+      const radius = Math.hypot(width, height) / 2;
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      break;
+    }
+    case "ellipse": {
+      ctx.ellipse(cx, cy, Math.abs(width) / 2, Math.abs(height) / 2, 0, 0, Math.PI * 2);
+      break;
+    }
+    case "square": {
+      ctx.rect(start.x, start.y, width, height);
+      break;
+    }
+    case "triangle": {
+      ctx.moveTo(start.x + width / 2, start.y);
+      ctx.lineTo(start.x, end.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.closePath();
+      break;
+    }
+    case "line": {
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      break;
+    }
+    case "arrow": {
+      const angle = Math.atan2(height, width);
+      const headLen = Math.max(12, Math.hypot(width, height) * 0.2);
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.lineTo(
+        end.x - headLen * Math.cos(angle - Math.PI / 6),
+        end.y - headLen * Math.sin(angle - Math.PI / 6)
+      );
+      ctx.moveTo(end.x, end.y);
+      ctx.lineTo(
+        end.x - headLen * Math.cos(angle + Math.PI / 6),
+        end.y - headLen * Math.sin(angle + Math.PI / 6)
+      );
+      break;
+    }
+    case "star": {
+      const outerR = Math.hypot(width, height) / 2;
+      const innerR = outerR * 0.4;
+      const spikes = 5;
+      let rot = (Math.PI / 2) * 3;
+      const step = Math.PI / spikes;
+      ctx.moveTo(cx, cy - outerR);
+      for (let i = 0; i < spikes; i++) {
+        ctx.lineTo(cx + Math.cos(rot) * outerR, cy + Math.sin(rot) * outerR);
+        rot += step;
+        ctx.lineTo(cx + Math.cos(rot) * innerR, cy + Math.sin(rot) * innerR);
+        rot += step;
+      }
+      ctx.closePath();
+      break;
+    }
+  }
+}
+
+function hexToRgba(hex: string): [number, number, number, number] {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return [r, g, b, 255];
+}
+
+/**
+ * Classic scanline flood fill. Operates directly on the canvas's raw pixel
+ * buffer (physical pixels), so callers must convert logical/CSS coordinates
+ * to physical pixels (multiply by devicePixelRatio) before calling this.
+ */
+function floodFill(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  startX: number,
+  startY: number,
+  fillColor: [number, number, number, number],
+  tolerance = 32
+) {
+  const x0 = Math.floor(startX);
+  const y0 = Math.floor(startY);
+  if (x0 < 0 || y0 < 0 || x0 >= width || y0 >= height) return;
+
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+
+  const startIdx = (y0 * width + x0) * 4;
+  const target: [number, number, number, number] = [
+    data[startIdx],
+    data[startIdx + 1],
+    data[startIdx + 2],
+    data[startIdx + 3],
+  ];
+
+  // Already the target color: nothing to do.
+  if (
+    Math.abs(target[0] - fillColor[0]) < 2 &&
+    Math.abs(target[1] - fillColor[1]) < 2 &&
+    Math.abs(target[2] - fillColor[2]) < 2 &&
+    Math.abs(target[3] - fillColor[3]) < 2
+  ) {
+    return;
+  }
+
+  const tol2 = tolerance * tolerance;
+  const matches = (idx: number) => {
+    const dr = data[idx] - target[0];
+    const dg = data[idx + 1] - target[1];
+    const db = data[idx + 2] - target[2];
+    const da = data[idx + 3] - target[3];
+    return dr * dr + dg * dg + db * db + da * da <= tol2;
+  };
+
+  const stack: [number, number][] = [[x0, y0]];
+
+  while (stack.length) {
+    const [x, y] = stack.pop()!;
+
+    let left = x;
+    while (left >= 0 && matches((y * width + left) * 4)) left--;
+    left++;
+
+    let right = x;
+    while (right < width && matches((y * width + right) * 4)) right++;
+    right--;
+
+    let spanAbove = false;
+    let spanBelow = false;
+
+    for (let i = left; i <= right; i++) {
+      const idx = (y * width + i) * 4;
+      data[idx] = fillColor[0];
+      data[idx + 1] = fillColor[1];
+      data[idx + 2] = fillColor[2];
+      data[idx + 3] = fillColor[3];
+
+      if (y > 0) {
+        const aboveMatch = matches(((y - 1) * width + i) * 4);
+        if (!spanAbove && aboveMatch) {
+          stack.push([i, y - 1]);
+          spanAbove = true;
+        } else if (spanAbove && !aboveMatch) {
+          spanAbove = false;
+        }
+      }
+      if (y < height - 1) {
+        const belowMatch = matches(((y + 1) * width + i) * 4);
+        if (!spanBelow && belowMatch) {
+          stack.push([i, y + 1]);
+          spanBelow = true;
+        } else if (spanBelow && !belowMatch) {
+          spanBelow = false;
+        }
+      }
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export function DrawingCanvas() {
-  // --- Refs ---
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
-  const isDrawingRef = useRef(false);
-  const currentStrokeRef = useRef<DrawingPoint[]>([]);
+
+  // Live-drawing refs (avoid re-rendering on every mouse move).
+  const isDrawingPathRef = useRef(false);
+  const currentPathRef = useRef<DrawingPoint[]>([]);
+  const shapeStartRef = useRef<DrawingPoint | null>(null);
   const isDrawingShapeRef = useRef(false);
-  const startPointRef = useRef<DrawingPoint | null>(null);
-  const hasDrawnRef = useRef(false);
-  const shapeRef = useRef<'circle' | 'square' | 'line'>('circle');
-  
-  // --- State ---
-  const [strokes, setStrokes] = useState<DrawingStroke[]>([]);
-  const [history, setHistory] = useState<DrawingStroke[][]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+  const hasMovedRef = useRef(false);
+
+  // History is the single source of truth: `strokes` is always derived from
+  // it, so there's no risk of the two getting out of sync.
+  const [history, setHistory] = useState<DrawingStroke[][]>([[]]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const strokes = history[historyIndex];
+
   const [isDrawing, setIsDrawing] = useState(false);
-  
-  const [tool, setTool] = useState<'pen' | 'eraser' | 'shape'>('pen');
-  const [color, setColor] = useState('#000000');
+  const [tool, setTool] = useState<ToolType>("pen");
+  const [color, setColor] = useState("#000000");
   const [brushSize, setBrushSize] = useState(8);
-  const [shape, setShape] = useState<'circle' | 'square' | 'line'>('circle');
-  
-  // --- Canvas dimensions ---
+  const [shape, setShape] = useState<ShapeType>("circle");
+  const [shapeFilled, setShapeFilled] = useState(false);
+
   const [canvasSize, setCanvasSize] = useState({ width: 1000, height: 650 });
 
-  // --- Get canvas dimensions based on window size ---
   const getCanvasDimensions = useCallback(() => {
-    if (typeof window === 'undefined') return { width: 1000, height: 650 };
+    if (typeof window === "undefined") return { width: 1000, height: 650 };
     const maxWidth = Math.min(window.innerWidth - 32, 1200);
     const maxHeight = Math.min(window.innerHeight - 280, 700);
     return { width: maxWidth, height: maxHeight };
   }, []);
 
-  // --- Redraw all strokes ---
-  const redrawCanvas = useCallback((strokeList?: DrawingStroke[]) => {
-    const ctx = ctxRef.current;
-    const canvas = canvasRef.current;
-    if (!ctx || !canvas) return;
-    
-    const dpr = window.devicePixelRatio || 1;
-    ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
-    
-    const strokesToDraw = strokeList || strokes;
-    
-    strokesToDraw.forEach(stroke => {
+  // --- Draw one stroke onto the context -----------------------------------
+  const drawStroke = useCallback((ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, stroke: DrawingStroke) => {
+    if (stroke.kind === "path") {
       if (stroke.points.length < 2) return;
-      
-      // Handle shape strokes
-      if (stroke.shape) {
-        const start = stroke.points[0];
-        const end = stroke.points[stroke.points.length - 1];
-        const width = end.x - start.x;
-        const height = end.y - start.y;
-        
-        ctx.save();
-        ctx.strokeStyle = stroke.color;
-        ctx.lineWidth = stroke.brushSize;
-        ctx.globalCompositeOperation = 'source-over';
-        
-        switch(stroke.shape) {
-          case 'circle':
-            ctx.beginPath();
-            const radius = Math.sqrt(Math.pow(width, 2) + Math.pow(height, 2)) / 2;
-            const centerX = (start.x + end.x) / 2;
-            const centerY = (start.y + end.y) / 2;
-            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-            ctx.stroke();
-            break;
-          case 'square':
-            ctx.strokeRect(start.x, start.y, width, height);
-            break;
-          case 'line':
-            ctx.beginPath();
-            ctx.moveTo(start.x, start.y);
-            ctx.lineTo(end.x, end.y);
-            ctx.stroke();
-            break;
-        }
-        ctx.restore();
-        return;
-      }
-      
-      // Handle pen/eraser strokes
       ctx.beginPath();
       ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-      
       for (let i = 1; i < stroke.points.length; i++) {
         ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
       }
-      
-      ctx.strokeStyle = stroke.tool === 'eraser' ? '#ffffff' : stroke.color;
+      ctx.strokeStyle = stroke.tool === "eraser" ? "#ffffff" : stroke.color;
       ctx.lineWidth = stroke.brushSize;
-      ctx.globalCompositeOperation = stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
+      ctx.globalCompositeOperation = stroke.tool === "eraser" ? "destination-out" : "source-over";
       ctx.stroke();
-    });
-    
-    ctx.globalCompositeOperation = 'source-over';
-  }, [strokes]);
+      ctx.globalCompositeOperation = "source-over";
+      return;
+    }
 
-  // --- Initialize canvas ---
+    if (stroke.kind === "shape") {
+      ctx.save();
+      ctx.strokeStyle = stroke.color;
+      ctx.fillStyle = stroke.color;
+      ctx.lineWidth = stroke.brushSize;
+      traceShapePath(ctx, stroke.shape, stroke.start, stroke.end);
+      if (stroke.filled && stroke.shape !== "line" && stroke.shape !== "arrow") {
+        ctx.fill();
+      } else {
+        ctx.stroke();
+      }
+      ctx.restore();
+      return;
+    }
+
+    if (stroke.kind === "fill") {
+      const dpr = window.devicePixelRatio || 1;
+      floodFill(ctx, canvas.width, canvas.height, stroke.point.x * dpr, stroke.point.y * dpr, hexToRgba(stroke.color));
+    }
+  }, []);
+
+  // --- Replay every stroke from scratch -----------------------------------
+  const redrawCanvas = useCallback(
+    (strokeList?: DrawingStroke[]) => {
+      const ctx = ctxRef.current;
+      const canvas = canvasRef.current;
+      if (!ctx || !canvas) return;
+
+      const dpr = window.devicePixelRatio || 1;
+      ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+
+      for (const stroke of strokeList ?? strokes) {
+        drawStroke(ctx, canvas, stroke);
+      }
+    },
+    [strokes, drawStroke]
+  );
+
+  // --- Initialize + handle resize -----------------------------------------
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
-    // Get dimensions
+
+    const setup = (dimensions: { width: number; height: number }) => {
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = dimensions.width * dpr;
+      canvas.height = dimensions.height * dpr;
+      canvas.style.width = `${dimensions.width}px`;
+      canvas.style.height = `${dimensions.height}px`;
+
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.scale(dpr, dpr);
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctxRef.current = ctx;
+      }
+    };
+
     const dimensions = getCanvasDimensions();
     setCanvasSize(dimensions);
-    
-    // Set canvas size with device pixel ratio for sharp rendering
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = dimensions.width * dpr;
-    canvas.height = dimensions.height * dpr;
-    canvas.style.width = `${dimensions.width}px`;
-    canvas.style.height = `${dimensions.height}px`;
-    
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.scale(dpr, dpr);
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctxRef.current = ctx;
-    }
-    
-    // Handle resize
+    setup(dimensions);
+
     const handleResize = () => {
       const newDimensions = getCanvasDimensions();
       setCanvasSize(newDimensions);
-      
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = newDimensions.width * dpr;
-      canvas.height = newDimensions.height * dpr;
-      canvas.style.width = `${newDimensions.width}px`;
-      canvas.style.height = `${newDimensions.height}px`;
-      
-      if (ctxRef.current) {
-        ctxRef.current.scale(dpr, dpr);
-        ctxRef.current.lineCap = 'round';
-        ctxRef.current.lineJoin = 'round';
-        setTimeout(() => redrawCanvas(), 0);
-      }
+      setup(newDimensions);
+      requestAnimationFrame(() => redrawCanvas());
     };
-    
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [getCanvasDimensions, redrawCanvas]);
 
-  // --- Redraw when strokes change ---
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getCanvasDimensions]);
+
+  // --- Redraw whenever the committed strokes change -----------------------
   useEffect(() => {
     redrawCanvas();
   }, [strokes, redrawCanvas]);
 
-  // --- Save current state to history ---
-  const saveToHistory = useCallback((newStrokes: DrawingStroke[]) => {
-    setHistory(prev => {
-      const newHistory = prev.slice(0, historyIndex + 1);
-      newHistory.push([...newStrokes]);
-      return newHistory;
-    });
-    setHistoryIndex(prev => prev + 1);
-  }, [historyIndex]);
+  // --- History management ---------------------------------------------------
+  const pushHistory = useCallback(
+    (newStrokes: DrawingStroke[]) => {
+      setHistory((prev) => [...prev.slice(0, historyIndex + 1), newStrokes]);
+      setHistoryIndex((prev) => prev + 1);
+    },
+    [historyIndex]
+  );
 
-  // --- Get canvas coordinates ---
-  const getCanvasCoords = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return null;
-    
-    const rect = canvas.getBoundingClientRect();
-    let clientX, clientY;
-    
-    if ('touches' in e) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-      e.preventDefault();
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
-    
-    // Scale coordinates to match canvas size
-    const dpr = window.devicePixelRatio || 1;
-    const scaleX = (canvas.width / dpr) / rect.width;
-    const scaleY = (canvas.height / dpr) / rect.height;
-    
-    return {
-      x: (clientX - rect.left) * scaleX,
-      y: (clientY - rect.top) * scaleY
-    };
-  }, []);
-
-  // --- Draw shape preview ---
-  const drawShapePreview = useCallback((start: DrawingPoint, end: DrawingPoint) => {
-    const ctx = ctxRef.current;
-    if (!ctx) return;
-    
-    // Redraw all strokes first
-    redrawCanvas();
-    
-    // Draw shape preview on top
-    ctx.save();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = brushSize;
-    ctx.globalCompositeOperation = 'source-over';
-    
-    const width = end.x - start.x;
-    const height = end.y - start.y;
-    
-    switch(shape) {
-      case 'circle':
-        ctx.beginPath();
-        const radius = Math.sqrt(Math.pow(width, 2) + Math.pow(height, 2)) / 2;
-        const centerX = (start.x + end.x) / 2;
-        const centerY = (start.y + end.y) / 2;
-        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-        ctx.stroke();
-        break;
-      case 'square':
-        ctx.strokeRect(start.x, start.y, width, height);
-        break;
-      case 'line':
-        ctx.beginPath();
-        ctx.moveTo(start.x, start.y);
-        ctx.lineTo(end.x, end.y);
-        ctx.stroke();
-        break;
-    }
-    
-    ctx.restore();
-  }, [redrawCanvas, color, brushSize, shape]);
-
-  // --- Start drawing ---
-  const startDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const coords = getCanvasCoords(e);
-    if (!coords || !ctxRef.current) return;
-    
-    if (tool === 'shape') {
-      startPointRef.current = coords;
-      isDrawingShapeRef.current = true;
-      shapeRef.current = shape;
-      hasDrawnRef.current = false;
-      return;
-    }
-    
-    isDrawingRef.current = true;
-    setIsDrawing(true);
-    currentStrokeRef.current = [coords];
-    hasDrawnRef.current = false;
-  }, [getCanvasCoords, tool, shape]);
-
-  // --- Draw ---
-  const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const coords = getCanvasCoords(e);
-    if (!coords || !ctxRef.current) return;
-    
-    if (tool === 'shape' && isDrawingShapeRef.current && startPointRef.current) {
-      hasDrawnRef.current = true;
-      drawShapePreview(startPointRef.current, coords);
-      return;
-    }
-    
-    if (!isDrawingRef.current) return;
-    
-    const ctx = ctxRef.current;
-    const canvas = canvasRef.current;
-    if (!ctx || !canvas) return;
-    
-    // Add point to current stroke
-    const points = [...currentStrokeRef.current, coords];
-    currentStrokeRef.current = points;
-    hasDrawnRef.current = true;
-    
-    // Redraw everything
-    redrawCanvas();
-    
-    // Draw current stroke on top
-    if (points.length >= 2) {
-      ctx.beginPath();
-      ctx.moveTo(points[0].x, points[0].y);
-      for (let i = 1; i < points.length; i++) {
-        ctx.lineTo(points[i].x, points[i].y);
-      }
-      ctx.strokeStyle = tool === 'eraser' ? '#ffffff' : color;
-      ctx.lineWidth = brushSize;
-      ctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
-      ctx.stroke();
-      ctx.globalCompositeOperation = 'source-over';
-    }
-  }, [getCanvasCoords, tool, redrawCanvas, drawShapePreview, color, brushSize]);
-
-  // --- Finish drawing ---
-  const finishDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    // Handle shape drawing
-    if (tool === 'shape' && isDrawingShapeRef.current && startPointRef.current) {
-      const coords = getCanvasCoords(e);
-      if (coords && hasDrawnRef.current) {
-        // Save the shape as a stroke
-        const newStroke: DrawingStroke = {
-          points: [startPointRef.current, coords],
-          color: color,
-          brushSize: brushSize,
-          tool: 'pen',
-          shape: shapeRef.current
-        };
-        
-        setStrokes(prev => {
-          const newStrokes = [...prev, newStroke];
-          saveToHistory(newStrokes);
-          return newStrokes;
-        });
-        
-        isDrawingShapeRef.current = false;
-        startPointRef.current = null;
-        hasDrawnRef.current = false;
-        
-        // Redraw with the shape included
-        setTimeout(() => {
-          redrawCanvas();
-        }, 0);
-      } else {
-        // Cancel shape drawing
-        isDrawingShapeRef.current = false;
-        startPointRef.current = null;
-        hasDrawnRef.current = false;
-        redrawCanvas();
-      }
-      return;
-    }
-    
-    // Handle pen/eraser drawing
-    if (!isDrawingRef.current) {
-      return;
-    }
-    
-    if (currentStrokeRef.current.length < 2 || !hasDrawnRef.current) {
-      isDrawingRef.current = false;
-      setIsDrawing(false);
-      currentStrokeRef.current = [];
-      hasDrawnRef.current = false;
-      return;
-    }
-    
-    const newStroke: DrawingStroke = {
-      points: [...currentStrokeRef.current],
-      color: tool === 'eraser' ? '#ffffff' : color,
-      brushSize: brushSize,
-      tool: tool === 'eraser' ? 'eraser' : 'pen'
-    };
-    
-    setStrokes(prev => {
-      const newStrokes = [...prev, newStroke];
-      saveToHistory(newStrokes);
-      return newStrokes;
-    });
-    
-    isDrawingRef.current = false;
-    setIsDrawing(false);
-    currentStrokeRef.current = [];
-    hasDrawnRef.current = false;
-  }, [tool, color, brushSize, getCanvasCoords, saveToHistory, redrawCanvas]);
-
-  // --- Handle mouse wheel for brush size ---
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    setBrushSize(prev => {
-      const newSize = e.deltaY > 0 ? prev - 2 : prev + 2;
-      return Math.max(2, Math.min(40, newSize));
-    });
-  }, []);
-
-  // --- Undo ---
   const undo = useCallback(() => {
-    if (historyIndex <= 0) return;
-    const newIndex = historyIndex - 1;
-    setHistoryIndex(newIndex);
-    setStrokes(history[newIndex]);
-    setTimeout(() => redrawCanvas(history[newIndex]), 0);
-  }, [historyIndex, history, redrawCanvas]);
+    setHistoryIndex((prev) => Math.max(0, prev - 1));
+  }, []);
 
-  // --- Redo ---
   const redo = useCallback(() => {
-    if (historyIndex >= history.length - 1) return;
-    const newIndex = historyIndex + 1;
-    setHistoryIndex(newIndex);
-    setStrokes(history[newIndex]);
-    setTimeout(() => redrawCanvas(history[newIndex]), 0);
-  }, [historyIndex, history, redrawCanvas]);
+    setHistoryIndex((prev) => Math.min(history.length - 1, prev + 1));
+  }, [history.length]);
 
-  // --- Clear canvas ---
   const clearCanvas = useCallback(() => {
     if (strokes.length === 0) return;
-    setStrokes([]);
-    saveToHistory([]);
-    setTimeout(() => redrawCanvas([]), 0);
-  }, [strokes, saveToHistory, redrawCanvas]);
+    pushHistory([]);
+  }, [strokes, pushHistory]);
 
-  // --- Export image ---
+  // Keyboard shortcuts for undo/redo.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if (e.key === "y" || (e.key === "z" && e.shiftKey)) {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [undo, redo]);
+
+  // --- Coordinates ----------------------------------------------------------
+  const getCanvasCoords = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>): DrawingPoint | null => {
+      const canvas = canvasRef.current;
+      if (!canvas) return null;
+
+      const rect = canvas.getBoundingClientRect();
+      let clientX: number, clientY: number;
+
+      if ("touches" in e) {
+        if (e.touches.length === 0) return null;
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+        e.preventDefault();
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+
+      const dpr = window.devicePixelRatio || 1;
+      const scaleX = canvas.width / dpr / rect.width;
+      const scaleY = canvas.height / dpr / rect.height;
+
+      return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY,
+      };
+    },
+    []
+  );
+
+  // --- Shape preview while dragging -----------------------------------------
+  const previewShape = useCallback(
+    (start: DrawingPoint, end: DrawingPoint) => {
+      const ctx = ctxRef.current;
+      const canvas = canvasRef.current;
+      if (!ctx || !canvas) return;
+
+      redrawCanvas();
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = brushSize;
+      traceShapePath(ctx, shape, start, end);
+      if (shapeFilled && shape !== "line" && shape !== "arrow") {
+        ctx.fill();
+      } else {
+        ctx.stroke();
+      }
+      ctx.restore();
+    },
+    [redrawCanvas, color, brushSize, shape, shapeFilled]
+  );
+
+  // --- Pointer handlers -------------------------------------------------------
+  const startDrawing = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+      const coords = getCanvasCoords(e);
+      if (!coords || !ctxRef.current) return;
+
+      if (tool === "fill") {
+        pushHistory([...strokes, { kind: "fill", point: coords, color }]);
+        return;
+      }
+
+      if (tool === "shape") {
+        shapeStartRef.current = coords;
+        isDrawingShapeRef.current = true;
+        hasMovedRef.current = false;
+        return;
+      }
+
+      isDrawingPathRef.current = true;
+      setIsDrawing(true);
+      currentPathRef.current = [coords];
+      hasMovedRef.current = false;
+    },
+    [getCanvasCoords, tool, strokes, color, pushHistory]
+  );
+
+  const draw = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+      const coords = getCanvasCoords(e);
+      if (!coords || !ctxRef.current) return;
+
+      if (tool === "shape" && isDrawingShapeRef.current && shapeStartRef.current) {
+        hasMovedRef.current = true;
+        previewShape(shapeStartRef.current, coords);
+        return;
+      }
+
+      if (!isDrawingPathRef.current) return;
+
+      const ctx = ctxRef.current;
+      const points = [...currentPathRef.current, coords];
+      currentPathRef.current = points;
+      hasMovedRef.current = true;
+
+      redrawCanvas();
+
+      if (points.length >= 2) {
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+        ctx.strokeStyle = tool === "eraser" ? "#ffffff" : color;
+        ctx.lineWidth = brushSize;
+        ctx.globalCompositeOperation = tool === "eraser" ? "destination-out" : "source-over";
+        ctx.stroke();
+        ctx.globalCompositeOperation = "source-over";
+      }
+    },
+    [getCanvasCoords, tool, redrawCanvas, previewShape, color, brushSize]
+  );
+
+  const finishDrawing = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+      if (tool === "shape" && isDrawingShapeRef.current && shapeStartRef.current) {
+        const coords = getCanvasCoords(e) ?? shapeStartRef.current;
+        if (hasMovedRef.current) {
+          const newStroke: ShapeStroke = {
+            kind: "shape",
+            shape,
+            start: shapeStartRef.current,
+            end: coords,
+            color,
+            brushSize,
+            filled: shapeFilled,
+          };
+          pushHistory([...strokes, newStroke]);
+        } else {
+          redrawCanvas();
+        }
+        isDrawingShapeRef.current = false;
+        shapeStartRef.current = null;
+        hasMovedRef.current = false;
+        return;
+      }
+
+      if (!isDrawingPathRef.current) return;
+
+      isDrawingPathRef.current = false;
+      setIsDrawing(false);
+
+      if (currentPathRef.current.length < 2 || !hasMovedRef.current) {
+        currentPathRef.current = [];
+        hasMovedRef.current = false;
+        return;
+      }
+
+      const newStroke: PathStroke = {
+        kind: "path",
+        tool: tool === "eraser" ? "eraser" : "pen",
+        points: [...currentPathRef.current],
+        color,
+        brushSize,
+      };
+      pushHistory([...strokes, newStroke]);
+
+      currentPathRef.current = [];
+      hasMovedRef.current = false;
+    },
+    [tool, color, brushSize, shape, shapeFilled, getCanvasCoords, strokes, pushHistory, redrawCanvas]
+  );
+
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    setBrushSize((prev) => Math.max(2, Math.min(100, e.deltaY > 0 ? prev - 2 : prev + 2)));
+  }, []);
+
   const exportImage = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
-    const link = document.createElement('a');
-    link.download = 'drawing.png';
-    link.href = canvas.toDataURL('image/png');
+    const link = document.createElement("a");
+    link.download = "drawing.png";
+    link.href = canvas.toDataURL("image/png");
     link.click();
   }, []);
 
+  const cursorClass = tool === "fill" ? "cursor-copy" : "cursor-crosshair";
+
   return (
     <div className="flex flex-col items-center gap-4 p-4 max-w-6xl mx-auto">
-      {/* Title */}
       <h1 className="text-2xl font-bold text-gray-800">Drawing Canvas</h1>
-      
+
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 p-3 bg-white rounded-lg shadow-md border border-gray-200 w-full">
-        {/* Color picker */}
+        {/* Color picker + presets */}
         <div className="flex items-center gap-1">
-          <label className="text-sm font-medium text-gray-700">Color</label>
           <input
             type="color"
             value={color}
             onChange={(e) => setColor(e.target.value)}
             className="w-8 h-8 rounded cursor-pointer border border-gray-300"
-            disabled={tool === 'eraser'}
+            disabled={tool === "eraser"}
+            aria-label="Color"
           />
+          <div className="flex items-center gap-0.5 ml-1">
+            {COLOR_PRESETS.map((preset) => (
+              <button
+                key={preset}
+                onClick={() => setColor(preset)}
+                className="w-4 h-4 rounded-full border border-gray-300 hover:scale-110 transition-transform"
+                style={{ backgroundColor: preset }}
+                aria-label={`Use color ${preset}`}
+              />
+            ))}
+          </div>
         </div>
-        
+
         {/* Brush size */}
         <div className="flex items-center gap-1">
           <label className="text-sm font-medium text-gray-700">Size</label>
           <input
             type="range"
             min={2}
-            max={40}
+            max={100}
             value={brushSize}
             onChange={(e) => setBrushSize(Number(e.target.value))}
             className="w-24"
           />
           <span className="text-xs text-gray-500 w-8">{brushSize}px</span>
         </div>
-        
+
         <div className="w-px h-8 bg-gray-300" />
-        
+
         {/* Tools */}
-        <Button
-          variant={tool === 'pen' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setTool('pen')}
-          className="flex items-center gap-1"
-        >
+        <Button variant={tool === "pen" ? "default" : "outline"} size="sm" onClick={() => setTool("pen")} className="flex items-center gap-1">
           <Pencil className="h-4 w-4" />
           <span className="hidden sm:inline">Pen</span>
         </Button>
-        
-        <Button
-          variant={tool === 'eraser' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setTool('eraser')}
-          className="flex items-center gap-1"
-        >
+
+        <Button variant={tool === "eraser" ? "default" : "outline"} size="sm" onClick={() => setTool("eraser")} className="flex items-center gap-1">
           <Eraser className="h-4 w-4" />
           <span className="hidden sm:inline">Eraser</span>
         </Button>
-        
-        <Button
-          variant={tool === 'shape' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setTool('shape')}
-          className="flex items-center gap-1"
-        >
+
+        <Button variant={tool === "shape" ? "default" : "outline"} size="sm" onClick={() => setTool("shape")} className="flex items-center gap-1">
           <Square className="h-4 w-4" />
           <span className="hidden sm:inline">Shape</span>
         </Button>
-        
-        {tool === 'shape' && (
+
+        <Button variant={tool === "fill" ? "default" : "outline"} size="sm" onClick={() => setTool("fill")} className="flex items-center gap-1">
+          <PaintBucket className="h-4 w-4" />
+          <span className="hidden sm:inline">Fill</span>
+        </Button>
+
+        {tool === "shape" && (
           <>
             <div className="w-px h-8 bg-gray-300" />
+            {SHAPES.map(({ type, icon: Icon, label }) => (
+              <Button
+                key={type}
+                variant={shape === type ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setShape(type)}
+                className="flex items-center gap-1"
+                aria-label={label}
+                title={label}
+              >
+                <Icon className="h-4 w-4" />
+              </Button>
+            ))}
             <Button
-              variant={shape === 'circle' ? 'secondary' : 'ghost'}
+              variant={shapeFilled ? "secondary" : "ghost"}
               size="sm"
-              onClick={() => setShape('circle')}
-              className="flex items-center gap-1"
+              onClick={() => setShapeFilled((v) => !v)}
+              disabled={shape === "line" || shape === "arrow"}
+              className="text-xs"
             >
-              <Circle className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={shape === 'square' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setShape('square')}
-              className="flex items-center gap-1"
-            >
-              <Square className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={shape === 'line' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setShape('line')}
-              className="flex items-center gap-1"
-            >
-              <Minus className="h-4 w-4" />
+              {shapeFilled ? "Filled" : "Outline"}
             </Button>
           </>
         )}
-        
+
         <div className="w-px h-8 bg-gray-300" />
-        
+
         {/* Actions */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={undo}
-          disabled={historyIndex <= 0}
-          className="flex items-center gap-1"
-        >
+        <Button variant="outline" size="sm" onClick={undo} disabled={historyIndex <= 0} className="flex items-center gap-1">
           <Undo className="h-4 w-4" />
           <span className="hidden sm:inline">Undo</span>
         </Button>
-        
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={redo}
-          disabled={historyIndex >= history.length - 1}
-          className="flex items-center gap-1"
-        >
+
+        <Button variant="outline" size="sm" onClick={redo} disabled={historyIndex >= history.length - 1} className="flex items-center gap-1">
           <Redo className="h-4 w-4" />
           <span className="hidden sm:inline">Redo</span>
         </Button>
-        
+
         <Button
           variant="outline"
           size="sm"
@@ -563,28 +727,22 @@ export function DrawingCanvas() {
           <Trash2 className="h-4 w-4" />
           <span className="hidden sm:inline">Clear</span>
         </Button>
-        
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={exportImage}
-          disabled={strokes.length === 0}
-          className="flex items-center gap-1"
-        >
+
+        <Button variant="outline" size="sm" onClick={exportImage} disabled={strokes.length === 0} className="flex items-center gap-1">
           <Download className="h-4 w-4" />
           <span className="hidden sm:inline">Export</span>
         </Button>
       </div>
-      
+
       {/* Canvas */}
       <div className="relative w-full bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
         <canvas
           ref={canvasRef}
-          className="touch-none w-full h-auto cursor-crosshair"
-          style={{ 
-            width: '100%',
-            height: 'auto',
-            aspectRatio: `${canvasSize.width}/${canvasSize.height}`
+          className={`touch-none w-full h-auto ${cursorClass}`}
+          style={{
+            width: "100%",
+            height: "auto",
+            aspectRatio: `${canvasSize.width}/${canvasSize.height}`,
           }}
           onMouseDown={startDrawing}
           onMouseMove={draw}
@@ -595,24 +753,25 @@ export function DrawingCanvas() {
           onTouchMove={draw}
           onTouchEnd={finishDrawing}
         />
-        
-        {/* Watermark hint */}
+
         <div className="absolute bottom-2 right-2 text-xs text-gray-400 pointer-events-none">
-          {tool === 'shape' ? 'Click and drag to draw shape' : 'Click and drag to draw | Scroll to change brush size'}
+          {tool === "shape" && "Click and drag to draw shape"}
+          {tool === "fill" && "Click an area to fill it"}
+          {(tool === "pen" || tool === "eraser") && "Click and drag to draw | Scroll to change brush size"}
         </div>
       </div>
-      
+
       {/* Status bar */}
       <div className="flex flex-wrap justify-between items-center w-full text-xs text-gray-500 px-2">
         <span>
-          Tools: {tool.charAt(0).toUpperCase() + tool.slice(1)}
-          {tool === 'shape' && ` (${shape})`}
+          Tool: {tool.charAt(0).toUpperCase() + tool.slice(1)}
+          {tool === "shape" && ` (${shape}${shapeFilled ? ", filled" : ""})`}
         </span>
         <span>
           Strokes: {strokes.length} | History: {historyIndex + 1}/{history.length}
         </span>
         <span className="hidden sm:block">
-          {isDrawing ? 'Drawing...' : 'Ready'} | Brush: {brushSize}px
+          {isDrawing ? "Drawing..." : "Ready"} | Brush: {brushSize}px
         </span>
       </div>
     </div>
