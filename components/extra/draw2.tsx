@@ -24,6 +24,7 @@ interface DrawingStroke {
   color: string;
   brushSize: number;
   tool: 'pen' | 'eraser';
+  shape?: 'circle' | 'square' | 'line'; // For shape strokes
 }
 
 export function DrawingCanvas() {
@@ -34,26 +35,28 @@ export function DrawingCanvas() {
   const currentStrokeRef = useRef<DrawingPoint[]>([]);
   const isDrawingShapeRef = useRef(false);
   const startPointRef = useRef<DrawingPoint | null>(null);
+  const hasDrawnRef = useRef(false);
+  const shapeRef = useRef<'circle' | 'square' | 'line'>('circle');
   
   // --- State ---
   const [strokes, setStrokes] = useState<DrawingStroke[]>([]);
   const [history, setHistory] = useState<DrawingStroke[][]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const [isDrawing, setIsDrawing] = useState(false); // <-- Added state for UI status
+  const [isDrawing, setIsDrawing] = useState(false);
   
   const [tool, setTool] = useState<'pen' | 'eraser' | 'shape'>('pen');
   const [color, setColor] = useState('#000000');
-  const [brushSize, setBrushSize] = useState(4);
+  const [brushSize, setBrushSize] = useState(8);
   const [shape, setShape] = useState<'circle' | 'square' | 'line'>('circle');
   
   // --- Canvas dimensions ---
-  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 500 });
+  const [canvasSize, setCanvasSize] = useState({ width: 1000, height: 650 });
 
   // --- Get canvas dimensions based on window size ---
   const getCanvasDimensions = useCallback(() => {
-    if (typeof window === 'undefined') return { width: 800, height: 500 };
-    const maxWidth = Math.min(window.innerWidth - 32, 800);
-    const maxHeight = Math.min(window.innerHeight - 320, 500);
+    if (typeof window === 'undefined') return { width: 1000, height: 650 };
+    const maxWidth = Math.min(window.innerWidth - 32, 1200);
+    const maxHeight = Math.min(window.innerHeight - 280, 700);
     return { width: maxWidth, height: maxHeight };
   }, []);
 
@@ -71,6 +74,42 @@ export function DrawingCanvas() {
     strokesToDraw.forEach(stroke => {
       if (stroke.points.length < 2) return;
       
+      // Handle shape strokes
+      if (stroke.shape) {
+        const start = stroke.points[0];
+        const end = stroke.points[stroke.points.length - 1];
+        const width = end.x - start.x;
+        const height = end.y - start.y;
+        
+        ctx.save();
+        ctx.strokeStyle = stroke.color;
+        ctx.lineWidth = stroke.brushSize;
+        ctx.globalCompositeOperation = 'source-over';
+        
+        switch(stroke.shape) {
+          case 'circle':
+            ctx.beginPath();
+            const radius = Math.sqrt(Math.pow(width, 2) + Math.pow(height, 2)) / 2;
+            const centerX = (start.x + end.x) / 2;
+            const centerY = (start.y + end.y) / 2;
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.stroke();
+            break;
+          case 'square':
+            ctx.strokeRect(start.x, start.y, width, height);
+            break;
+          case 'line':
+            ctx.beginPath();
+            ctx.moveTo(start.x, start.y);
+            ctx.lineTo(end.x, end.y);
+            ctx.stroke();
+            break;
+        }
+        ctx.restore();
+        return;
+      }
+      
+      // Handle pen/eraser strokes
       ctx.beginPath();
       ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
       
@@ -126,13 +165,18 @@ export function DrawingCanvas() {
         ctxRef.current.scale(dpr, dpr);
         ctxRef.current.lineCap = 'round';
         ctxRef.current.lineJoin = 'round';
-        redrawCanvas();
+        setTimeout(() => redrawCanvas(), 0);
       }
     };
     
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [getCanvasDimensions, redrawCanvas]);
+
+  // --- Redraw when strokes change ---
+  useEffect(() => {
+    redrawCanvas();
+  }, [strokes, redrawCanvas]);
 
   // --- Save current state to history ---
   const saveToHistory = useCallback((newStrokes: DrawingStroke[]) => {
@@ -172,16 +216,15 @@ export function DrawingCanvas() {
     };
   }, []);
 
-  // --- Preview shape ---
-  const previewShape = useCallback((start: DrawingPoint, end: DrawingPoint) => {
+  // --- Draw shape preview ---
+  const drawShapePreview = useCallback((start: DrawingPoint, end: DrawingPoint) => {
     const ctx = ctxRef.current;
-    const canvas = canvasRef.current;
-    if (!ctx || !canvas) return;
+    if (!ctx) return;
     
-    // Redraw all strokes
+    // Redraw all strokes first
     redrawCanvas();
     
-    // Draw shape preview
+    // Draw shape preview on top
     ctx.save();
     ctx.strokeStyle = color;
     ctx.lineWidth = brushSize;
@@ -221,13 +264,16 @@ export function DrawingCanvas() {
     if (tool === 'shape') {
       startPointRef.current = coords;
       isDrawingShapeRef.current = true;
+      shapeRef.current = shape;
+      hasDrawnRef.current = false;
       return;
     }
     
     isDrawingRef.current = true;
-    setIsDrawing(true); // <-- Update UI state
+    setIsDrawing(true);
     currentStrokeRef.current = [coords];
-  }, [getCanvasCoords, tool]);
+    hasDrawnRef.current = false;
+  }, [getCanvasCoords, tool, shape]);
 
   // --- Draw ---
   const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -235,8 +281,8 @@ export function DrawingCanvas() {
     if (!coords || !ctxRef.current) return;
     
     if (tool === 'shape' && isDrawingShapeRef.current && startPointRef.current) {
-      // Preview shape
-      previewShape(startPointRef.current, coords);
+      hasDrawnRef.current = true;
+      drawShapePreview(startPointRef.current, coords);
       return;
     }
     
@@ -246,9 +292,10 @@ export function DrawingCanvas() {
     const canvas = canvasRef.current;
     if (!ctx || !canvas) return;
     
-    // Draw the line
+    // Add point to current stroke
     const points = [...currentStrokeRef.current, coords];
     currentStrokeRef.current = points;
+    hasDrawnRef.current = true;
     
     // Redraw everything
     redrawCanvas();
@@ -266,19 +313,21 @@ export function DrawingCanvas() {
       ctx.stroke();
       ctx.globalCompositeOperation = 'source-over';
     }
-  }, [getCanvasCoords, tool, previewShape, redrawCanvas, color, brushSize]);
+  }, [getCanvasCoords, tool, redrawCanvas, drawShapePreview, color, brushSize]);
 
   // --- Finish drawing ---
   const finishDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    // Handle shape drawing
     if (tool === 'shape' && isDrawingShapeRef.current && startPointRef.current) {
       const coords = getCanvasCoords(e);
-      if (coords) {
+      if (coords && hasDrawnRef.current) {
         // Save the shape as a stroke
         const newStroke: DrawingStroke = {
           points: [startPointRef.current, coords],
           color: color,
           brushSize: brushSize,
-          tool: 'pen'
+          tool: 'pen',
+          shape: shapeRef.current
         };
         
         setStrokes(prev => {
@@ -289,24 +338,37 @@ export function DrawingCanvas() {
         
         isDrawingShapeRef.current = false;
         startPointRef.current = null;
+        hasDrawnRef.current = false;
         
         // Redraw with the shape included
         setTimeout(() => {
           redrawCanvas();
         }, 0);
+      } else {
+        // Cancel shape drawing
+        isDrawingShapeRef.current = false;
+        startPointRef.current = null;
+        hasDrawnRef.current = false;
+        redrawCanvas();
       }
       return;
     }
     
-    if (!isDrawingRef.current || currentStrokeRef.current.length < 2) {
+    // Handle pen/eraser drawing
+    if (!isDrawingRef.current) {
+      return;
+    }
+    
+    if (currentStrokeRef.current.length < 2 || !hasDrawnRef.current) {
       isDrawingRef.current = false;
-      setIsDrawing(false); // <-- Update UI state
+      setIsDrawing(false);
       currentStrokeRef.current = [];
+      hasDrawnRef.current = false;
       return;
     }
     
     const newStroke: DrawingStroke = {
-      points: currentStrokeRef.current,
+      points: [...currentStrokeRef.current],
       color: tool === 'eraser' ? '#ffffff' : color,
       brushSize: brushSize,
       tool: tool === 'eraser' ? 'eraser' : 'pen'
@@ -319,9 +381,19 @@ export function DrawingCanvas() {
     });
     
     isDrawingRef.current = false;
-    setIsDrawing(false); // <-- Update UI state
+    setIsDrawing(false);
     currentStrokeRef.current = [];
-  }, [tool, getCanvasCoords, color, brushSize, saveToHistory, redrawCanvas]);
+    hasDrawnRef.current = false;
+  }, [tool, color, brushSize, getCanvasCoords, saveToHistory, redrawCanvas]);
+
+  // --- Handle mouse wheel for brush size ---
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    setBrushSize(prev => {
+      const newSize = e.deltaY > 0 ? prev - 2 : prev + 2;
+      return Math.max(2, Math.min(40, newSize));
+    });
+  }, []);
 
   // --- Undo ---
   const undo = useCallback(() => {
@@ -329,7 +401,7 @@ export function DrawingCanvas() {
     const newIndex = historyIndex - 1;
     setHistoryIndex(newIndex);
     setStrokes(history[newIndex]);
-    redrawCanvas(history[newIndex]);
+    setTimeout(() => redrawCanvas(history[newIndex]), 0);
   }, [historyIndex, history, redrawCanvas]);
 
   // --- Redo ---
@@ -338,7 +410,7 @@ export function DrawingCanvas() {
     const newIndex = historyIndex + 1;
     setHistoryIndex(newIndex);
     setStrokes(history[newIndex]);
-    redrawCanvas(history[newIndex]);
+    setTimeout(() => redrawCanvas(history[newIndex]), 0);
   }, [historyIndex, history, redrawCanvas]);
 
   // --- Clear canvas ---
@@ -346,7 +418,7 @@ export function DrawingCanvas() {
     if (strokes.length === 0) return;
     setStrokes([]);
     saveToHistory([]);
-    redrawCanvas([]);
+    setTimeout(() => redrawCanvas([]), 0);
   }, [strokes, saveToHistory, redrawCanvas]);
 
   // --- Export image ---
@@ -361,7 +433,7 @@ export function DrawingCanvas() {
   }, []);
 
   return (
-    <div className="flex flex-col items-center gap-4 p-4 max-w-4xl mx-auto">
+    <div className="flex flex-col items-center gap-4 p-4 max-w-6xl mx-auto">
       {/* Title */}
       <h1 className="text-2xl font-bold text-gray-800">Drawing Canvas</h1>
       
@@ -384,13 +456,13 @@ export function DrawingCanvas() {
           <label className="text-sm font-medium text-gray-700">Size</label>
           <input
             type="range"
-            min={1}
-            max={20}
+            min={2}
+            max={40}
             value={brushSize}
             onChange={(e) => setBrushSize(Number(e.target.value))}
-            className="w-20"
+            className="w-24"
           />
-          <span className="text-xs text-gray-500 w-6">{brushSize}</span>
+          <span className="text-xs text-gray-500 w-8">{brushSize}px</span>
         </div>
         
         <div className="w-px h-8 bg-gray-300" />
@@ -518,6 +590,7 @@ export function DrawingCanvas() {
           onMouseMove={draw}
           onMouseUp={finishDrawing}
           onMouseLeave={finishDrawing}
+          onWheel={handleWheel}
           onTouchStart={startDrawing}
           onTouchMove={draw}
           onTouchEnd={finishDrawing}
@@ -525,7 +598,7 @@ export function DrawingCanvas() {
         
         {/* Watermark hint */}
         <div className="absolute bottom-2 right-2 text-xs text-gray-400 pointer-events-none">
-          {tool === 'shape' ? 'Click and drag to draw shape' : 'Click and drag to draw'}
+          {tool === 'shape' ? 'Click and drag to draw shape' : 'Click and drag to draw | Scroll to change brush size'}
         </div>
       </div>
       
@@ -539,7 +612,7 @@ export function DrawingCanvas() {
           Strokes: {strokes.length} | History: {historyIndex + 1}/{history.length}
         </span>
         <span className="hidden sm:block">
-          {isDrawing ? 'Drawing...' : 'Ready'} {/* <-- Using state instead of ref */}
+          {isDrawing ? 'Drawing...' : 'Ready'} | Brush: {brushSize}px
         </span>
       </div>
     </div>
