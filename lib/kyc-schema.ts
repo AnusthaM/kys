@@ -193,6 +193,10 @@ export interface ScannedKycData {
   gender?: string;
   nationality?: string;
   documentType?: DocumentTypeValue;
+  father?: Partial<{ firstName: string; middleName: string; lastName: string }>;
+  mother?: Partial<{ firstName: string; middleName: string; lastName: string }>;
+  grandFather?: Partial<{ firstName: string; middleName: string; lastName: string }>;
+  grandMother?: Partial<{ firstName: string; middleName: string; lastName: string }>;
   address?: Partial<{
     country: string;
     province: string;

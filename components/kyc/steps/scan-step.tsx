@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Field, FieldLabel } from '@/components/ui/field';
-import { DocumentUploadField } from './document-upload-field';
+import { DocumentUploadField } from '../documents/document-upload-field';
 import { ScanLine, ArrowRight, Loader2 } from "lucide-react";
 import { ScannedKycData } from '@/lib/kyc-schema';
 

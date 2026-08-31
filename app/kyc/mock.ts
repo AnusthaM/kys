@@ -9,6 +9,7 @@ export const MOCK_PROFILES: Record<DocumentTypeValue, ScannedKycData> = {
     gender: "male",
     nationality: "Nepali",
     documentType: "pan_card",
+    father: { firstName: "Krishna", middleName: "Bahadur", lastName: "Shrestha" },
     address: {
       country: "Nepal",
       province: "Bagmati",
@@ -43,6 +44,8 @@ export const MOCK_PROFILES: Record<DocumentTypeValue, ScannedKycData> = {
     gender: "male",
     nationality: "Nepali",
     documentType: "birth_certificate",
+    father: { firstName: "Ram", middleName: "Prasad", lastName: "Karki" },
+    mother: { firstName: "Gita", middleName: "", lastName: "Karki" },
     address: {
       country: "Nepal",
       province: "Koshi",
@@ -60,6 +63,9 @@ export const MOCK_PROFILES: Record<DocumentTypeValue, ScannedKycData> = {
     gender: "female",
     nationality: "Nepali",
     documentType: "citizenship",
+    father: { firstName: "Suresh", middleName: "Man", lastName: "Maharjan" },
+    mother: { firstName: "Sarita", middleName: "", lastName: "Maharjan" },
+    grandFather: { firstName: "Hari", middleName: "Man", lastName: "Maharjan" },
     address: {
       country: "Nepal",
       province: "Bagmati",
@@ -77,6 +83,8 @@ export const MOCK_PROFILES: Record<DocumentTypeValue, ScannedKycData> = {
     gender: "male",
     nationality: "Nepali",
     documentType: "passport",
+    father: { firstName: "Mohan", middleName: "", lastName: "Thapa" },
+    mother: { firstName: "Kamala", middleName: "", lastName: "Thapa" },
     address: {
       country: "Nepal",
       province: "Bagmati",
@@ -94,6 +102,8 @@ export const MOCK_PROFILES: Record<DocumentTypeValue, ScannedKycData> = {
     gender: "female",
     nationality: "Nepali",
     documentType: "national_id",
+    father: { firstName: "Dawa", middleName: "", lastName: "Tamang" },
+    mother: { firstName: "Pema", middleName: "", lastName: "Tamang" },
     address: {
       country: "Nepal",
       province: "Bagmati",
