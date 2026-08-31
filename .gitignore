@@ -39,4 +39,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-.local-kyc-storage
+# KYC local storage (sensitive user data)
+.local-kyc-storage/
