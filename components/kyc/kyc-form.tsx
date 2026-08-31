@@ -3,11 +3,11 @@
 import { ShieldCheck, ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SectionCard } from "./section-card";
-import ScanStep from './steps/scan-step';
-import { StepProgress } from './steps/step-progress';
-import { KycStepFields } from './steps/kyc-step-fields';
-import { useKycForm } from './kyc-config/use-kyc-form';
-import { STEP_META } from './kyc-config/kyc-form-config';
+import { StepProgress } from "./steps/step-progress";
+import ScanStep from "./steps/scan-step";
+import { KycStepFields } from "./steps/kyc-step-fields";
+import { useKycForm } from "./kyc-config/use-kyc-form";
+import { STEP_META } from "./kyc-config/kyc-form-config";
 
 export function KycForm() {
   const {
@@ -31,13 +31,8 @@ export function KycForm() {
       ) : (
         <>
           <StepProgress steps={stepStatus} current={step} onStepClick={goToStep} />
-          <form
-            onSubmit={(e) => {
-              if (!isLastStep) return e.preventDefault();
-              handleSubmit(onValid)(e);
-            }}
-            className="space-y-6 pt-6"
-          >
+          {/* No handleSubmit here at all — this form never submits itself natively */}
+          <form onSubmit={(e) => e.preventDefault()} className="space-y-6 pt-6">
             <SectionCard step={String(step + 1)} icon={meta.icon} title={meta.title} description={meta.description}>
               <KycStepFields
                 step={step}
@@ -57,7 +52,13 @@ export function KycForm() {
               </Button>
 
               {isLastStep ? (
-                <Button type="submit" disabled={isPending} size="lg" className="flex-1">
+                <Button
+                  type="button"
+                  onClick={handleSubmit(onValid)}
+                  disabled={isPending}
+                  size="lg"
+                  className="flex-1"
+                >
                   {isPending ? "Submitting..." : "Submit for Verification"}
                 </Button>
               ) : (

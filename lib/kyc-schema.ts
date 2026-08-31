@@ -44,6 +44,13 @@ const documentEntrySchema = z
     front: z.instanceof(File).optional(),
     back: z.instanceof(File).optional(),
     file: z.instanceof(File).optional(),
+    idNumber: z.string().optional(),
+    issueDate: z.string().optional(),
+    expiryDate: z.string().optional(),
+    informantFirstName: z.string().optional(),
+    informantMiddleName: z.string().optional(),
+    informantLastName: z.string().optional(),
+    informantRelationship: z.string().optional(),
   })
   .superRefine((val, ctx) => {
     const config = DOCUMENT_TYPES.find((d) => d.value === val.type);
@@ -114,11 +121,29 @@ export const kycSchema = z.object({
   gender: z.string().refine((v) => isOneOf(genderValues, v), "Select a gender"),
   martial_status: z.string().refine((v) => isOneOf(maritalValues, v), "Select a marital status"),
   occupation: z.string().refine((v) => isOneOf(occupationValues, v), "Select an occupation"),
+  spouseFirstName: z.string().optional(),
+  spouseMiddleName: z.string().optional(),
+  spouseLastName: z.string().optional(),
+  spouseAge: z.string().optional(),
   permanentAddress: addressSchema,
   temporaryAddress: addressSchema,
   photo: z.instanceof(File, { message: "Photo is required" }),
-   signature: signatureFileSchema,
+  signature: signatureFileSchema,
   documents: z.array(documentEntrySchema).min(1, "Add at least one document"),
+}).superRefine((val, ctx) => {
+  if (val.martial_status === "married") {
+    if (!val.spouseFirstName) {
+      ctx.addIssue({ code: "custom", message: "Spouse first name is required", path: ["spouseFirstName"] });
+    }
+    if (!val.spouseLastName) {
+      ctx.addIssue({ code: "custom", message: "Spouse last name is required", path: ["spouseLastName"] });
+    }
+    if (!val.spouseAge) {
+      ctx.addIssue({ code: "custom", message: "Spouse age is required", path: ["spouseAge"] });
+    } else if (!/^\d+$/.test(val.spouseAge) || Number(val.spouseAge) < 18) {
+      ctx.addIssue({ code: "custom", message: "Enter a valid spouse age (18+)", path: ["spouseAge"] });
+    }
+  }
 });
 
 export type KycFormValues = z.infer<typeof kycSchema>;
@@ -171,10 +196,14 @@ export const ADDRESS_FIELDS: { name: "country" | "province" | "district" | "city
 ];
 
 export const STEP_FIELDS = [
-  ["firstName", "middleName", "lastName", "dob", "email", "phone", "nationality", "gender", "martial_status", "occupation"],
+  [
+    "firstName", "middleName", "lastName", "dob", "email", "phone", "nationality",
+    "gender", "martial_status", "occupation",
+    "spouseFirstName", "spouseMiddleName", "spouseLastName", "spouseAge",
+  ],
   ["father", "mother", "grandFather", "grandMother"],
   ["permanentAddress", "temporaryAddress"],
-  ["photo","signature"],
+  ["photo", "signature"],
   ["documents"],
 ] as const;
 
@@ -185,6 +214,12 @@ export const MUNICIPALITY_OPTIONS = [
   { value: "rural-municipality", label: "Rural Municipality" },
 ];
 
+interface ScannedPerson {
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+}
+
 export interface ScannedKycData {
   firstName?: string;
   middleName?: string;
@@ -193,10 +228,27 @@ export interface ScannedKycData {
   gender?: string;
   nationality?: string;
   documentType?: DocumentTypeValue;
-  father?: Partial<{ firstName: string; middleName: string; lastName: string }>;
-  mother?: Partial<{ firstName: string; middleName: string; lastName: string }>;
-  grandFather?: Partial<{ firstName: string; middleName: string; lastName: string }>;
-  grandMother?: Partial<{ firstName: string; middleName: string; lastName: string }>;
+
+  father?: Partial<ScannedPerson>;
+  mother?: Partial<ScannedPerson>;
+  grandFather?: Partial<ScannedPerson>;
+  grandMother?: Partial<ScannedPerson>;
+
+  // document-specific identifiers, only some of which apply per documentType
+  panNo?: string;
+  licenseNo?: string;
+  passportNo?: string;
+  nationalIdNo?: string;
+  citizenshipNo?: string;
+  birthRegistrationNo?: string;
+  issueDate?: string;
+  expiryDate?: string;
+  contactNo?: string;
+
+  // birth certificate only
+  informant?: Partial<ScannedPerson>;
+  informantRelationship?: string;
+
   address?: Partial<{
     country: string;
     province: string;

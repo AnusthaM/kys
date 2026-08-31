@@ -1,6 +1,6 @@
 "use client"
 import { ScanActionState, scanDocument } from "@/app/kyc/actions";
-import { DOCUMENT_TYPES, DocumentTypeValue } from "@/lib/kyc-schema";
+import { DOCUMENT_TYPES, DocumentTypeValue, DocumentFormat, ScannedKycData } from "@/lib/kyc-schema";
 import { useState, useTransition } from 'react';
 import { toast } from "sonner";
 import { Card } from '@/components/ui/card';
@@ -13,29 +13,30 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Field, FieldLabel } from '@/components/ui/field';
-import { DocumentUploadField } from '../documents/document-upload-field';
 import { ScanLine, ArrowRight, Loader2 } from "lucide-react";
-import { ScannedKycData } from '@/lib/kyc-schema';
+import { DocumentUploadField } from '../documents/document-upload-field';
 
 interface ScanStepProps {
-    onScanned: (data:ScannedKycData, file:File)=> void
-    onSkip:()=> void
+    onScanned: (data: ScannedKycData, file: File) => void
+    onSkip: () => void
 }
 
-export default function ScanStep({onScanned, onSkip}: ScanStepProps) {
+export default function ScanStep({ onScanned, onSkip }: ScanStepProps) {
     const [file, setFile] = useState<File | undefined>();
     const [documentType, setDocumentType] = useState<DocumentTypeValue | "">("");
+    const [format, setFormat] = useState<DocumentFormat>("image");
     const [isPending, startTransition] = useTransition();
 
-    function handleScan(){
+    function handleScan() {
         if (!file || !documentType) return;
         const formData = new FormData()
         formData.append("document", file)
         formData.append("documentType", documentType)
+        formData.append("format", format)
 
-        startTransition(async()=>{
+        startTransition(async () => {
             const result: ScanActionState = await scanDocument(formData)
-            if(result.status === "success"){
+            if (result.status === "success") {
                 toast.success("Document scanned - review the details below")
                 onScanned(result.data, file)
             } else if (result.status === "error") {
@@ -58,40 +59,51 @@ export default function ScanStep({onScanned, onSkip}: ScanStepProps) {
 
       <Field>
         <FieldLabel>Document type</FieldLabel>
-        <Select
-          value={documentType}
-          onValueChange={(v) => setDocumentType(v as DocumentTypeValue)}
-        >
+        <Select value={documentType} onValueChange={(v) => setDocumentType(v as DocumentTypeValue)}>
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Select the document you're scanning" />
           </SelectTrigger>
           <SelectContent>
             {DOCUMENT_TYPES.map((d) => (
-              <SelectItem key={d.value} value={d.value}>
-                {d.label}
-              </SelectItem>
+              <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       </Field>
 
-      <DocumentUploadField value={file} onChange={setFile} allowCamera accept="image/*,.pdf" />
+      <Field>
+        <FieldLabel>File format</FieldLabel>
+        <div className="flex w-fit rounded-md border p-0.5 text-xs">
+          <button
+            type="button"
+            onClick={() => { setFormat("image"); setFile(undefined); }}
+            className={`rounded px-3 py-1.5 ${format === "image" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+          >
+            JPEG / PNG
+          </button>
+          <button
+            type="button"
+            onClick={() => { setFormat("pdf"); setFile(undefined); }}
+            className={`rounded px-3 py-1.5 ${format === "pdf" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+          >
+            PDF
+          </button>
+        </div>
+      </Field>
+
+      <DocumentUploadField
+        value={file}
+        onChange={setFile}
+        allowCamera={format === "image"}
+        accept={format === "pdf" ? "application/pdf" : "image/*"}
+      />
 
       <div className="flex flex-col gap-2">
-        <Button
-          type="button"
-          onClick={handleScan}
-          disabled={!file || !documentType || isPending}
-          className="w-full"
-        >
+        <Button type="button" onClick={handleScan} disabled={!file || !documentType || isPending} className="w-full">
           {isPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Scanning document...
-            </>
+            <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Scanning document...</>
           ) : (
-            <>
-              Scan &amp; Autofill <ArrowRight className="ml-2 h-4 w-4" />
-            </>
+            <>Scan &amp; Autofill <ArrowRight className="ml-2 h-4 w-4" /></>
           )}
         </Button>
         <Button type="button" variant="ghost" onClick={onSkip} disabled={isPending} className="w-full text-muted-foreground">
