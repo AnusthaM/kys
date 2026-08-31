@@ -4,6 +4,11 @@ function isOneOf<T extends string>(values: readonly T[], value: string): boolean
   return (values as readonly string[]).includes(value);
 }
 
+const signatureFileSchema = z
+  .instanceof(File)
+  .refine((f) => f.size <= 5 * 1024 * 1024, "Max file size is 5MB")
+  .refine((f) => ["image/jpeg", "application/pdf"].includes(f.type), "Signature must be JPEG or PDF");
+
 const imageFileSchema = z
   .instanceof(File)
   .refine((f) => f.size <= 5 * 1024 * 1024, "Max file size is 5MB")
@@ -112,6 +117,7 @@ export const kycSchema = z.object({
   permanentAddress: addressSchema,
   temporaryAddress: addressSchema,
   photo: z.instanceof(File, { message: "Photo is required" }),
+   signature: signatureFileSchema,
   documents: z.array(documentEntrySchema).min(1, "Add at least one document"),
 });
 
@@ -168,7 +174,7 @@ export const STEP_FIELDS = [
   ["firstName", "middleName", "lastName", "dob", "email", "phone", "nationality", "gender", "martial_status", "occupation"],
   ["father", "mother", "grandFather", "grandMother"],
   ["permanentAddress", "temporaryAddress"],
-  ["photo"],
+  ["photo","signature"],
   ["documents"],
 ] as const;
 

@@ -17,6 +17,7 @@ interface DocumentUploadFieldProps {
 export function DocumentUploadField({ value, onChange, allowCamera, accept = "image/*,.pdf" }: DocumentUploadFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  // --- Derived state: Generate preview URL for image files ---
   const previewUrl = value && value.type.startsWith("image/") ? URL.createObjectURL(value) : null;
 
   return (

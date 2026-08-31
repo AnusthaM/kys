@@ -1,5 +1,5 @@
 "use client";
-
+// useWatch: Subscribes to form value changes without re-rendering entire form
 import { Control, Controller, useWatch } from "react-hook-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

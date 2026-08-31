@@ -18,16 +18,21 @@ export function CameraCaptureDialog({
   onCapture,
   fileName = "capture.jpg",
 }: CameraCaptureDialogProps) {
+
+  //refrence to the video element displaying camera feed
   const videoRef = useRef<HTMLVideoElement>(null);
+  // Reference to the camera stream for cleanup
   const streamRef = useRef<MediaStream | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // --- Reset UI state when `open` changes (render-time, not effect) ---
+  //runs durinmg render to reset state immediately when dialog open/closes
   const [prevOpen, setPrevOpen] = useState(open);
   if (open !== prevOpen) {
     setPrevOpen(open);
     if (open) {
+      //when dialog opens, clear any previous photo or error
       setPreview(null);
       setError(null);
     }
@@ -44,7 +49,7 @@ export function CameraCaptureDialog({
       stopStream();
       return;
     }
-
+    //flag to prevent state updates if component unmounts
     let cancelled = false;
 
     navigator.mediaDevices
