@@ -34,6 +34,7 @@ const PRIMARY_ID_FIELD: Record<DocumentTypeValue, keyof ScannedKycData> = {
 };
 
 export function useKycForm() {
+  const [scannedDocIndex, setScannedDocIndex] = useState<number | null>(null);
   const [state, setState] = useState<KycActionState>({ status: "idle" });
   const [showScan, setShowScan] = useState(true);
   const [isPending, startTransition] = useTransition();
@@ -74,91 +75,58 @@ export function useKycForm() {
     name: "documents",
   });
 
-  function applyScannedData(data: ScannedKycData, scannedFile: File) {
-    (
-      [
-        "firstName",
-        "middleName",
-        "lastName",
-        "dob",
-        "gender",
-        "nationality",
-      ] as const
-    ).forEach((key) => {
-      const value = data[key];
-      if (value) setValue(key, value);
+  function applyScannedData(data: ScannedKycData, frontFile: File, backFile?: File) {
+  (["firstName", "middleName", "lastName", "dob", "gender", "nationality"] as const).forEach((key) => {
+    const value = data[key];
+    if (value) setValue(key, value);
+  });
+
+  if (data.contactNo) setValue("phone", data.contactNo);
+
+  (["father", "mother", "grandFather", "grandMother"] as const).forEach((relKey) => {
+    const person = data[relKey];
+    if (!person) return;
+    (["firstName", "middleName", "lastName"] as const).forEach((f) => {
+      const value = person[f];
+      if (value) setValue(`${relKey}.${f}`, value);
     });
+  });
 
-    if (data.contactNo) setValue("phone", data.contactNo);
-
-    (["father", "mother", "grandFather", "grandMother"] as const).forEach(
-      (relKey) => {
-        const person = data[relKey];
-        if (!person) return;
-        (["firstName", "middleName", "lastName"] as const).forEach((f) => {
-          const value = person[f];
-          if (value) setValue(`${relKey}.${f}`, value);
-        });
+  if (data.address) {
+    (Object.entries(data.address) as [keyof NonNullable<ScannedKycData["address"]>, string][]).forEach(
+      ([key, value]) => {
+        if (value) setValue(`permanentAddress.${key}`, value);
       },
     );
-
-    if (data.address) {
-      (
-        Object.entries(data.address) as [
-          keyof NonNullable<ScannedKycData["address"]>,
-          string,
-        ][]
-      ).forEach(([key, value]) => {
-        if (value) setValue(`permanentAddress.${key}`, value);
-      });
-    }
-
-    if (data.documentType) {
-      const documentType = data.documentType;
-      const isPdf = scannedFile.type === "application/pdf";
-      const newIndex = fields.length;
-
-      append({
-        type: documentType,
-        format: isPdf ? "pdf" : "image",
-        front: isPdf ? undefined : scannedFile,
-        back: undefined,
-        file: isPdf ? scannedFile : undefined,
-      });
-
-      const idNumber = data[PRIMARY_ID_FIELD[documentType]] as
-        | string
-        | undefined;
-      if (idNumber) setValue(`documents.${newIndex}.idNumber`, idNumber);
-      if (data.issueDate)
-        setValue(`documents.${newIndex}.issueDate`, data.issueDate);
-      if (data.expiryDate)
-        setValue(`documents.${newIndex}.expiryDate`, data.expiryDate);
-
-      if (data.informant?.firstName)
-        setValue(
-          `documents.${newIndex}.informantFirstName`,
-          data.informant.firstName,
-        );
-      if (data.informant?.middleName)
-        setValue(
-          `documents.${newIndex}.informantMiddleName`,
-          data.informant.middleName,
-        );
-      if (data.informant?.lastName)
-        setValue(
-          `documents.${newIndex}.informantLastName`,
-          data.informant.lastName,
-        );
-      if (data.informantRelationship)
-        setValue(
-          `documents.${newIndex}.informantRelationship`,
-          data.informantRelationship,
-        );
-    }
-
-    setShowScan(false);
   }
+
+  if (data.documentType) {
+    const documentType = data.documentType;
+    const isPdf = frontFile.type === "application/pdf";
+    const newIndex = fields.length;
+
+    append({
+      type: documentType,
+      format: isPdf ? "pdf" : "image",
+      front: isPdf ? undefined : frontFile,
+      back: isPdf ? undefined : backFile,
+      file: isPdf ? frontFile : undefined,
+    });
+    setScannedDocIndex(newIndex);
+
+    const idNumber = data[PRIMARY_ID_FIELD[documentType]] as string | undefined;
+    if (idNumber) setValue(`documents.${newIndex}.idNumber`, idNumber);
+    if (data.issueDate) setValue(`documents.${newIndex}.issueDate`, data.issueDate);
+    if (data.expiryDate) setValue(`documents.${newIndex}.expiryDate`, data.expiryDate);
+
+    if (data.informant?.firstName) setValue(`documents.${newIndex}.informantFirstName`, data.informant.firstName);
+    if (data.informant?.middleName) setValue(`documents.${newIndex}.informantMiddleName`, data.informant.middleName);
+    if (data.informant?.lastName) setValue(`documents.${newIndex}.informantLastName`, data.informant.lastName);
+    if (data.informantRelationship) setValue(`documents.${newIndex}.informantRelationship`, data.informantRelationship);
+  }
+
+  setShowScan(false);
+}
 
   const documents = useWatch({ control, name: "documents" }) ?? [];
   const usedTypes = documents.map((d) => d?.type).filter(Boolean) as string[];
@@ -277,7 +245,6 @@ export function useKycForm() {
       }
     });
   }
-
   return {
     control,
     setValue,
@@ -298,5 +265,6 @@ export function useKycForm() {
     goBack,
     goToStep,
     applyScannedData,
+    scannedDocIndex,
   };
 }

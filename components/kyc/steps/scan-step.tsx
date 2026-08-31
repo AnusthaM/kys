@@ -6,31 +6,37 @@ import { toast } from "sonner";
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Field, FieldLabel } from '@/components/ui/field';
-import { ScanLine, ArrowRight, Loader2 } from "lucide-react";
 import { DocumentUploadField } from '../documents/document-upload-field';
+import { ScanLine, ArrowRight, Loader2 } from "lucide-react";
 
 interface ScanStepProps {
-    onScanned: (data: ScannedKycData, file: File) => void
+    onScanned: (data: ScannedKycData, front: File, back?: File) => void
     onSkip: () => void
 }
 
 export default function ScanStep({ onScanned, onSkip }: ScanStepProps) {
-    const [file, setFile] = useState<File | undefined>();
     const [documentType, setDocumentType] = useState<DocumentTypeValue | "">("");
     const [format, setFormat] = useState<DocumentFormat>("image");
+    const [frontFile, setFrontFile] = useState<File | undefined>();
+    const [backFile, setBackFile] = useState<File | undefined>();
     const [isPending, startTransition] = useTransition();
 
+    const config = DOCUMENT_TYPES.find((d) => d.value === documentType);
+    const needsBack = format === "image" && !!config?.requiresBack;
+    const canScan = !!documentType && !!frontFile && (!needsBack || !!backFile);
+
+    function resetFiles() {
+        setFrontFile(undefined);
+        setBackFile(undefined);
+    }
+
     function handleScan() {
-        if (!file || !documentType) return;
+        if (!canScan || !frontFile) return;
         const formData = new FormData()
-        formData.append("document", file)
+        formData.append("document", frontFile)
         formData.append("documentType", documentType)
         formData.append("format", format)
 
@@ -38,7 +44,7 @@ export default function ScanStep({ onScanned, onSkip }: ScanStepProps) {
             const result: ScanActionState = await scanDocument(formData)
             if (result.status === "success") {
                 toast.success("Document scanned - review the details below")
-                onScanned(result.data, file)
+                onScanned(result.data, frontFile, format === "image" ? backFile : undefined)
             } else if (result.status === "error") {
                 toast.error(result.message)
             }
@@ -59,7 +65,10 @@ export default function ScanStep({ onScanned, onSkip }: ScanStepProps) {
 
       <Field>
         <FieldLabel>Document type</FieldLabel>
-        <Select value={documentType} onValueChange={(v) => setDocumentType(v as DocumentTypeValue)}>
+        <Select
+          value={documentType}
+          onValueChange={(v) => { setDocumentType(v as DocumentTypeValue); resetFiles(); }}
+        >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Select the document you're scanning" />
           </SelectTrigger>
@@ -76,14 +85,14 @@ export default function ScanStep({ onScanned, onSkip }: ScanStepProps) {
         <div className="flex w-fit rounded-md border p-0.5 text-xs">
           <button
             type="button"
-            onClick={() => { setFormat("image"); setFile(undefined); }}
+            onClick={() => { setFormat("image"); resetFiles(); }}
             className={`rounded px-3 py-1.5 ${format === "image" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
           >
             JPEG / PNG
           </button>
           <button
             type="button"
-            onClick={() => { setFormat("pdf"); setFile(undefined); }}
+            onClick={() => { setFormat("pdf"); resetFiles(); }}
             className={`rounded px-3 py-1.5 ${format === "pdf" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
           >
             PDF
@@ -91,15 +100,30 @@ export default function ScanStep({ onScanned, onSkip }: ScanStepProps) {
         </div>
       </Field>
 
-      <DocumentUploadField
-        value={file}
-        onChange={setFile}
-        allowCamera={format === "image"}
-        accept={format === "pdf" ? "application/pdf" : "image/*"}
-      />
+      {format === "pdf" ? (
+        <DocumentUploadField
+          value={frontFile}
+          onChange={setFrontFile}
+          allowCamera={false}
+          accept="application/pdf"
+        />
+      ) : (
+        <>
+          <Field>
+            <FieldLabel>Front {needsBack ? "" : "(and back, if double-sided)"}</FieldLabel>
+            <DocumentUploadField value={frontFile} onChange={setFrontFile} allowCamera accept="image/*" />
+          </Field>
+          {needsBack && (
+            <Field>
+              <FieldLabel>Back</FieldLabel>
+              <DocumentUploadField value={backFile} onChange={setBackFile} allowCamera accept="image/*" />
+            </Field>
+          )}
+        </>
+      )}
 
       <div className="flex flex-col gap-2">
-        <Button type="button" onClick={handleScan} disabled={!file || !documentType || isPending} className="w-full">
+        <Button type="button" onClick={handleScan} disabled={!canScan || isPending} className="w-full">
           {isPending ? (
             <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Scanning document...</>
           ) : (

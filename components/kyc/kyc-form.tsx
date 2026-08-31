@@ -11,10 +11,26 @@ import { STEP_META } from "./kyc-config/kyc-form-config";
 
 export function KycForm() {
   const {
-    control, setValue, formState, handleSubmit, onValid,
-    fields, append, remove, usedTypes,
-    step, isLastStep, isPending, showScan, setShowScan,
-    stepStatus, goNext, goBack, goToStep, applyScannedData,
+    control,
+    setValue,
+    formState,
+    handleSubmit,
+    onValid,
+    fields,
+    append,
+    remove,
+    usedTypes,
+    step,
+    isLastStep,
+    isPending,
+    showScan,
+    setShowScan,
+    stepStatus,
+    goNext,
+    goBack,
+    goToStep,
+    applyScannedData,
+    scannedDocIndex,
   } = useKycForm();
 
   const meta = STEP_META[step];
@@ -27,13 +43,25 @@ export function KycForm() {
       </div>
 
       {showScan ? (
-        <ScanStep onScanned={applyScannedData} onSkip={() => setShowScan(false)} />
+        <ScanStep
+          onScanned={applyScannedData}
+          onSkip={() => setShowScan(false)}
+        />
       ) : (
         <>
-          <StepProgress steps={stepStatus} current={step} onStepClick={goToStep} />
+          <StepProgress
+            steps={stepStatus}
+            current={step}
+            onStepClick={goToStep}
+          />
           {/* No handleSubmit here at all — this form never submits itself natively */}
           <form onSubmit={(e) => e.preventDefault()} className="space-y-6 pt-6">
-            <SectionCard step={String(step + 1)} icon={meta.icon} title={meta.title} description={meta.description}>
+            <SectionCard
+              step={String(step + 1)}
+              icon={meta.icon}
+              title={meta.title}
+              description={meta.description}
+            >
               <KycStepFields
                 step={step}
                 control={control}
@@ -41,13 +69,27 @@ export function KycForm() {
                 fields={fields}
                 usedTypes={usedTypes}
                 formState={formState}
-                onAddDocument={() => append({ type: "", format: "image", front: undefined, back: undefined, file: undefined })}
+                scannedDocIndex={scannedDocIndex}
+                onAddDocument={() =>
+                  append({
+                    type: "",
+                    format: "image",
+                    front: undefined,
+                    back: undefined,
+                    file: undefined,
+                  })
+                }
                 onRemoveDocument={remove}
               />
             </SectionCard>
 
             <div className="flex items-center justify-between gap-3">
-              <Button type="button" variant="outline" onClick={goBack} disabled={step === 0}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={goBack}
+                disabled={step === 0}
+              >
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
 

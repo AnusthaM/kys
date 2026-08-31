@@ -14,6 +14,7 @@ import { DocumentEntry } from "../documents/document-entry";
 import { DocumentExtraFields } from "../fields/document-extra-fields";
 import { Plus } from "lucide-react";
 import { SpouseFields } from "../fields/spouse-fields";
+import { DocumentPreviewCard } from "../documents/document-preview-card";
 
 interface KycStepFieldsProps {
   step: number;
@@ -22,12 +23,13 @@ interface KycStepFieldsProps {
   fields: FieldArrayWithId<KycFormValues, "documents", "id">[];
   usedTypes: string[];
   formState: UseFormStateReturn<KycFormValues>;
+  scannedDocIndex: number | null;
   onAddDocument: () => void;
   onRemoveDocument: (index: number) => void;
 }
 
 export function KycStepFields({
-  step, control, setValue, fields, usedTypes, formState, onAddDocument, onRemoveDocument,
+  step, control, setValue, fields, usedTypes, formState, scannedDocIndex, onAddDocument, onRemoveDocument,
 }: KycStepFieldsProps) {
  if (step === 0) {
   return (
@@ -86,7 +88,7 @@ export function KycStepFields({
     );
   }
 
-  return (
+return (
     <FieldSet className="gap-3">
       <div className="flex items-center justify-between">
         <FieldLegend variant="label" className="sr-only">Documents</FieldLegend>
@@ -101,12 +103,16 @@ export function KycStepFields({
         </p>
       )}
 
-      {fields.map((field, index) => (
-        <div key={field.id} className="space-y-3 rounded-lg border p-4">
-          <DocumentEntry control={control} index={index} usedTypes={usedTypes} onRemove={() => onRemoveDocument(index)} />
-          <DocumentExtraFields control={control} index={index} />
-        </div>
-      ))}
+      {fields.map((field, index) =>
+        index === scannedDocIndex ? (
+          <DocumentPreviewCard key={field.id} control={control} index={index} />
+        ) : (
+          <div key={field.id} className="space-y-3 rounded-lg border p-4">
+            <DocumentEntry control={control} index={index} usedTypes={usedTypes} onRemove={() => onRemoveDocument(index)} />
+            <DocumentExtraFields control={control} index={index} />
+          </div>
+        ),
+      )}
       {formState.errors.documents?.root && (
         <p className="text-sm text-destructive">{formState.errors.documents.root.message}</p>
       )}
