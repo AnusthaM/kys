@@ -64,7 +64,7 @@ function FileThumb({ file, label }: { file: File | undefined; label: string }) {
       ) : (
         <div className="flex items-center gap-2">
           <div className="flex h-24 w-32 items-center justify-center gap-2 rounded border bg-muted text-xs text-muted-foreground">
-            <FileText className="h-4 w-4 truncate" /> {file.name}
+            <FileText className="h-4 w-4" /> <span className="min-w-0 truncate">{file.name}</span>
           </div>
           {url && (
             <Button
