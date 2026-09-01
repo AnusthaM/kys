@@ -10,11 +10,10 @@ import { PersonNameFields } from "../fields/person-name-fields";
 import { AddressFields } from "../fields/address-fields";
 import { DocumentUploadField } from "../documents/document-upload-field";
 import { SignatureField } from "../fields/signature-field";
-import { DocumentEntry } from "../documents/document-entry";
-import { DocumentExtraFields } from "../fields/document-extra-fields";
 import { Plus } from "lucide-react";
 import { SpouseFields } from "../fields/spouse-fields";
-import { DocumentPreviewCard } from "../documents/document-preview-card";
+import { DocumentRow } from "../documents/document-row";
+
 
 interface KycStepFieldsProps {
   step: number;
@@ -23,27 +22,26 @@ interface KycStepFieldsProps {
   fields: FieldArrayWithId<KycFormValues, "documents", "id">[];
   usedTypes: string[];
   formState: UseFormStateReturn<KycFormValues>;
-  scannedDocIndex: number | null;
   onAddDocument: () => void;
   onRemoveDocument: (index: number) => void;
 }
 
 export function KycStepFields({
-  step, control, setValue, fields, usedTypes, formState, scannedDocIndex, onAddDocument, onRemoveDocument,
+  step, control, setValue, fields, usedTypes, formState, onAddDocument, onRemoveDocument,
 }: KycStepFieldsProps) {
- if (step === 0) {
-  return (
-    <FieldGroup className="grid gap-4 sm:grid-cols-2">
-      {PERSONAL_FIELDS.map((f) => (
-        <TextField key={f.name} control={control} name={f.name} label={f.label} type={f.type} />
-      ))}
-      {SELECT_FIELDS.map((f) => (
-        <SelectField key={f.name} control={control} name={f.name} label={f.label} options={f.options} />
-      ))}
-      <SpouseFields control={control} />
-    </FieldGroup>
-  );
-}
+  if (step === 0) {
+    return (
+      <FieldGroup className="grid gap-4 sm:grid-cols-2">
+        {PERSONAL_FIELDS.map((f) => (
+          <TextField key={f.name} control={control} name={f.name} label={f.label} type={f.type} />
+        ))}
+        {SELECT_FIELDS.map((f) => (
+          <SelectField key={f.name} control={control} name={f.name} label={f.label} options={f.options} />
+        ))}
+        <SpouseFields control={control} />
+      </FieldGroup>
+    );
+  }
 
   if (step === 1) {
     return (
@@ -88,7 +86,7 @@ export function KycStepFields({
     );
   }
 
-return (
+  return (
     <FieldSet className="gap-3">
       <div className="flex items-center justify-between">
         <FieldLegend variant="label" className="sr-only">Documents</FieldLegend>
@@ -103,16 +101,15 @@ return (
         </p>
       )}
 
-      {fields.map((field, index) =>
-        index === scannedDocIndex ? (
-          <DocumentPreviewCard key={field.id} control={control} index={index} />
-        ) : (
-          <div key={field.id} className="space-y-3 rounded-lg border p-4">
-            <DocumentEntry control={control} index={index} usedTypes={usedTypes} onRemove={() => onRemoveDocument(index)} />
-            <DocumentExtraFields control={control} index={index} />
-          </div>
-        ),
-      )}
+      {fields.map((field, index) => (
+        <DocumentRow
+          key={field.id}
+          control={control}
+          index={index}
+          usedTypes={usedTypes}
+          onRemove={() => onRemoveDocument(index)}
+        />
+      ))}
       {formState.errors.documents?.root && (
         <p className="text-sm text-destructive">{formState.errors.documents.root.message}</p>
       )}

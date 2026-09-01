@@ -51,6 +51,7 @@ const documentEntrySchema = z
     informantMiddleName: z.string().optional(),
     informantLastName: z.string().optional(),
     informantRelationship: z.string().optional(),
+    fromScan: z.boolean().optional(),
   })
   .superRefine((val, ctx) => {
     const config = DOCUMENT_TYPES.find((d) => d.value === val.type);

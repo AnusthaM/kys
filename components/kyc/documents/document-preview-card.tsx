@@ -38,6 +38,8 @@ export function DocumentPreviewCard({ control, index }: DocumentPreviewCardProps
 
   if (!doc) return null;
 
+  const showBack = !!config?.requiresBack;
+
   return (
     <Card className="space-y-3 p-4">
       <div className="flex items-center justify-between">
@@ -68,16 +70,18 @@ export function DocumentPreviewCard({ control, index }: DocumentPreviewCardProps
               )}
             </div>
           </div>
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">Back</p>
-            <div className="relative h-24 w-32 overflow-hidden rounded border bg-white">
-              {backUrl ? (
-                <Image src={backUrl} alt="Document back" fill className="object-contain" unoptimized />
-              ) : (
-                <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Not provided</div>
-              )}
+          {showBack && (
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Back</p>
+              <div className="relative h-24 w-32 overflow-hidden rounded border bg-white">
+                {backUrl ? (
+                  <Image src={backUrl} alt="Document back" fill className="object-contain" unoptimized />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Not provided</div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 

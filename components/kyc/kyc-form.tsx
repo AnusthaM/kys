@@ -6,32 +6,22 @@ import { SectionCard } from "./section-card";
 import { StepProgress } from "./steps/step-progress";
 import ScanStep from "./steps/scan-step";
 import { KycStepFields } from "./steps/kyc-step-fields";
+import { KycSubmissionSummary } from "./kyc-submission-summary";
 import { useKycForm } from "./kyc-config/use-kyc-form";
 import { STEP_META } from "./kyc-config/kyc-form-config";
 
 export function KycForm() {
   const {
-    control,
-    setValue,
-    formState,
-    handleSubmit,
-    onValid,
-    fields,
-    append,
-    remove,
-    usedTypes,
-    step,
-    isLastStep,
-    isPending,
-    showScan,
-    setShowScan,
-    stepStatus,
-    goNext,
-    goBack,
-    goToStep,
-    applyScannedData,
-    scannedDocIndex,
+    control, setValue, formState, handleSubmit, onValid, onInvalid,
+    fields, append, remove, usedTypes,
+    step, isLastStep, isPending, showScan, setShowScan,
+    stepStatus, goNext, goBack, goToStep, applyScannedData,
+    submittedData, submissionId, startOver,
   } = useKycForm();
+
+  if (submittedData) {
+    return <KycSubmissionSummary data={submittedData} submissionId={submissionId} onStartOver={startOver} />;
+  }
 
   const meta = STEP_META[step];
 
@@ -43,25 +33,12 @@ export function KycForm() {
       </div>
 
       {showScan ? (
-        <ScanStep
-          onScanned={applyScannedData}
-          onSkip={() => setShowScan(false)}
-        />
+        <ScanStep onScanned={applyScannedData} onSkip={() => setShowScan(false)} />
       ) : (
         <>
-          <StepProgress
-            steps={stepStatus}
-            current={step}
-            onStepClick={goToStep}
-          />
-          {/* No handleSubmit here at all — this form never submits itself natively */}
+          <StepProgress steps={stepStatus} current={step} onStepClick={goToStep} />
           <form onSubmit={(e) => e.preventDefault()} className="space-y-6 pt-6">
-            <SectionCard
-              step={String(step + 1)}
-              icon={meta.icon}
-              title={meta.title}
-              description={meta.description}
-            >
+            <SectionCard step={String(step + 1)} icon={meta.icon} title={meta.title} description={meta.description}>
               <KycStepFields
                 step={step}
                 control={control}
@@ -69,38 +46,18 @@ export function KycForm() {
                 fields={fields}
                 usedTypes={usedTypes}
                 formState={formState}
-                scannedDocIndex={scannedDocIndex}
-                onAddDocument={() =>
-                  append({
-                    type: "",
-                    format: "image",
-                    front: undefined,
-                    back: undefined,
-                    file: undefined,
-                  })
-                }
+                onAddDocument={append}
                 onRemoveDocument={remove}
               />
             </SectionCard>
 
             <div className="flex items-center justify-between gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={goBack}
-                disabled={step === 0}
-              >
+              <Button type="button" variant="outline" onClick={goBack} disabled={step === 0}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
 
               {isLastStep ? (
-                <Button
-                  type="button"
-                  onClick={handleSubmit(onValid)}
-                  disabled={isPending}
-                  size="lg"
-                  className="flex-1"
-                >
+                <Button type="button" onClick={handleSubmit(onValid, onInvalid)} disabled={isPending} size="lg" className="flex-1">
                   {isPending ? "Submitting..." : "Submit for Verification"}
                 </Button>
               ) : (
