@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { useWatch, type Control } from "react-hook-form";
 import { KycFormValues, DOCUMENT_TYPES } from "@/lib/kyc-schema";
 import { Card } from "@/components/ui/card";
-import { Lock, FileText } from "lucide-react";
-import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Lock, FileText, ExternalLink } from "lucide-react";
+import { ZoomableImage } from "../zoomable-image";
 
 interface DocumentPreviewCardProps {
   control: Control<KycFormValues>;
@@ -17,7 +18,7 @@ function useObjectUrl(file: File | undefined | null) {
 
   useEffect(() => {
     if (!file) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing local preview state to a browser File; url must be created fresh each effect run so Strict Mode's double-invoke doesn't leave a revoked URL in place
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing local preview state to a browser File
       setUrl(null);
       return;
     }
@@ -28,6 +29,7 @@ function useObjectUrl(file: File | undefined | null) {
 
   return url;
 }
+
 export function DocumentPreviewCard({ control, index }: DocumentPreviewCardProps) {
   const doc = useWatch({ control, name: `documents.${index}` });
   const config = DOCUMENT_TYPES.find((d) => d.value === doc?.type);
@@ -35,6 +37,7 @@ export function DocumentPreviewCard({ control, index }: DocumentPreviewCardProps
   const isImage = doc?.format === "image";
   const frontUrl = useObjectUrl(isImage ? doc?.front : null);
   const backUrl = useObjectUrl(isImage ? doc?.back : null);
+  const pdfUrl = useObjectUrl(!isImage ? doc?.file : null);
 
   if (!doc) return null;
 
@@ -55,31 +58,34 @@ export function DocumentPreviewCard({ control, index }: DocumentPreviewCardProps
       </div>
 
       {doc.format === "pdf" ? (
-        <div className="flex h-24 w-40 items-center justify-center gap-2 rounded border bg-muted text-xs text-muted-foreground">
-          <FileText className="h-4 w-4" /> {doc.file?.name ?? "document.pdf"}
+        <div className="flex items-center gap-3">
+          <div className="flex h-24 w-32 items-center justify-center gap-2 rounded border bg-muted text-xs text-muted-foreground">
+            <FileText className="h-4 w-4 overflow-hidden" /> {doc.file?.name ?? "document.pdf"}
+          </div>
+          {pdfUrl && (
+            <Button type="button" variant="outline" size="sm" onClick={() => window.open(pdfUrl, "_blank")}>
+              <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> View PDF
+            </Button>
+          )}
         </div>
       ) : (
         <div className="flex gap-3">
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">Front</p>
-            <div className="relative h-24 w-32 overflow-hidden rounded border bg-white">
-              {frontUrl ? (
-                <Image src={frontUrl} alt="Document front" fill className="object-contain" unoptimized />
-              ) : (
-                <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Not provided</div>
-              )}
-            </div>
+            {frontUrl ? (
+              <ZoomableImage src={frontUrl} alt="Document front" className="h-24 w-32" />
+            ) : (
+              <div className="flex h-24 w-32 items-center justify-center rounded border text-xs text-muted-foreground">Not provided</div>
+            )}
           </div>
           {showBack && (
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Back</p>
-              <div className="relative h-24 w-32 overflow-hidden rounded border bg-white">
-                {backUrl ? (
-                  <Image src={backUrl} alt="Document back" fill className="object-contain" unoptimized />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Not provided</div>
-                )}
-              </div>
+              {backUrl ? (
+                <ZoomableImage src={backUrl} alt="Document back" className="h-24 w-32" />
+              ) : (
+                <div className="flex h-24 w-32 items-center justify-center rounded border text-xs text-muted-foreground">Not provided</div>
+              )}
             </div>
           )}
         </div>
