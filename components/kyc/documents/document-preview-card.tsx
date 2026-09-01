@@ -30,7 +30,10 @@ function useObjectUrl(file: File | undefined | null) {
   return url;
 }
 
-export function DocumentPreviewCard({ control, index }: DocumentPreviewCardProps) {
+export function DocumentPreviewCard({
+  control,
+  index,
+}: DocumentPreviewCardProps) {
   const doc = useWatch({ control, name: `documents.${index}` });
   const config = DOCUMENT_TYPES.find((d) => d.value === doc?.type);
 
@@ -47,7 +50,9 @@ export function DocumentPreviewCard({ control, index }: DocumentPreviewCardProps
     <Card className="space-y-3 p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{config?.label ?? doc.type}</span>
+          <span className="text-sm font-medium">
+            {config?.label ?? doc.type}
+          </span>
           <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
             <Lock className="h-3 w-3" /> From scan
           </span>
@@ -59,11 +64,19 @@ export function DocumentPreviewCard({ control, index }: DocumentPreviewCardProps
 
       {doc.format === "pdf" ? (
         <div className="flex items-center gap-3">
-          <div className="flex h-24 w-32 items-center justify-center gap-2 rounded border bg-muted text-xs text-muted-foreground">
-            <FileText className="h-4 w-4 overflow-hidden" /> {doc.file?.name ?? "document.pdf"}
+          <div className="flex h-24 w-32 items-center justify-center gap-2 rounded border bg-muted p-2 text-xs text-muted-foreground">
+            <FileText className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 truncate">
+              {doc.file?.name ?? "document.pdf"}
+            </span>
           </div>
           {pdfUrl && (
-            <Button type="button" variant="outline" size="sm" onClick={() => window.open(pdfUrl, "_blank")}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => window.open(pdfUrl, "_blank")}
+            >
               <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> View PDF
             </Button>
           )}
@@ -73,18 +86,30 @@ export function DocumentPreviewCard({ control, index }: DocumentPreviewCardProps
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">Front</p>
             {frontUrl ? (
-              <ZoomableImage src={frontUrl} alt="Document front" className="h-24 w-32" />
+              <ZoomableImage
+                src={frontUrl}
+                alt="Document front"
+                className="h-24 w-32"
+              />
             ) : (
-              <div className="flex h-24 w-32 items-center justify-center rounded border text-xs text-muted-foreground">Not provided</div>
+              <div className="flex h-24 w-32 items-center justify-center rounded border text-xs text-muted-foreground">
+                Not provided
+              </div>
             )}
           </div>
           {showBack && (
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Back</p>
               {backUrl ? (
-                <ZoomableImage src={backUrl} alt="Document back" className="h-24 w-32" />
+                <ZoomableImage
+                  src={backUrl}
+                  alt="Document back"
+                  className="h-24 w-32"
+                />
               ) : (
-                <div className="flex h-24 w-32 items-center justify-center rounded border text-xs text-muted-foreground">Not provided</div>
+                <div className="flex h-24 w-32 items-center justify-center rounded border text-xs text-muted-foreground">
+                  Not provided
+                </div>
               )}
             </div>
           )}
