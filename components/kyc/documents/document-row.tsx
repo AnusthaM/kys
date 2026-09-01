@@ -17,11 +17,15 @@ export function DocumentRow({ control, index, usedTypes, onRemove }: DocumentRow
   const fromScan = useWatch({ control, name: `documents.${index}.fromScan` });
 
   if (fromScan) {
-    return <DocumentPreviewCard control={control} index={index} />;
+    return (
+      <div className="animate-in fade-in zoom-in-95 duration-300 ease-out">
+        <DocumentPreviewCard control={control} index={index} />
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-3 rounded-lg border p-4">
+    <div className="animate-in fade-in zoom-in-95 space-y-3 rounded-lg border p-4 duration-300 ease-out">
       <DocumentEntry control={control} index={index} usedTypes={usedTypes} onRemove={onRemove} />
       <DocumentExtraFields control={control} index={index} />
     </div>

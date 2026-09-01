@@ -2,11 +2,11 @@
 
 import { ShieldCheck, ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SectionCard } from "./section-card";
+import { SectionCard } from "./common/section-card";
 import { StepProgress } from "./steps/step-progress";
 import ScanStep from "./steps/scan-step";
 import { KycStepFields } from "./steps/kyc-step-fields";
-import { KycSubmissionSummary } from "./kyc-submission-summary";
+import { KycSubmissionSummary } from "./kyc-summary/kyc-submission-summary";
 import { useKycForm } from "./kyc-config/use-kyc-form";
 import { STEP_META } from "./kyc-config/kyc-form-config";
 

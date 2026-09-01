@@ -1,6 +1,6 @@
 "use client";
 
-import { Controller, type Control, type FieldArrayWithId, type UseFormSetValue, type UseFormStateReturn } from "react-hook-form";
+import { Controller, useWatch, type Control, type FieldArrayWithId, type UseFormSetValue, type UseFormStateReturn } from "react-hook-form";
 import { KycFormValues, PERSONAL_FIELDS, FAMILY_GROUPS, SELECT_FIELDS, DOCUMENT_TYPES } from "@/lib/kyc-schema";
 import { Field, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { SignatureField } from "../fields/signature-field";
 import { Plus } from "lucide-react";
 import { SpouseFields } from "../fields/spouse-fields";
 import { DocumentRow } from "../documents/document-row";
-
+import { KycReviewSummary } from "../kyc-summary/kyc-review-summary";
 
 interface KycStepFieldsProps {
   step: number;
@@ -86,33 +86,44 @@ export function KycStepFields({
     );
   }
 
-  return (
-    <FieldSet className="gap-3">
-      <div className="flex items-center justify-between">
-        <FieldLegend variant="label" className="sr-only">Documents</FieldLegend>
-        <Button type="button" variant="outline" size="sm" disabled={usedTypes.length >= DOCUMENT_TYPES.length} onClick={onAddDocument}>
-          <Plus className="mr-2 h-4 w-4" /> Add document
-        </Button>
-      </div>
+  if (step === 4) {
+    return (
+      <FieldSet className="gap-3">
+        <div className="flex items-center justify-between">
+          <FieldLegend variant="label" className="sr-only">Documents</FieldLegend>
+          <Button type="button" variant="outline" size="sm" disabled={usedTypes.length >= DOCUMENT_TYPES.length} onClick={onAddDocument}>
+            <Plus className="mr-2 h-4 w-4" /> Add document
+          </Button>
+        </div>
 
-      {fields.length === 0 && (
-        <p className="rounded-md border border-dashed py-6 text-center text-sm text-muted-foreground">
-          No documents added yet.
-        </p>
-      )}
+        {fields.length === 0 && (
+          <p className="rounded-md border border-dashed py-6 text-center text-sm text-muted-foreground">
+            No documents added yet.
+          </p>
+        )}
 
-      {fields.map((field, index) => (
-        <DocumentRow
-          key={field.id}
-          control={control}
-          index={index}
-          usedTypes={usedTypes}
-          onRemove={() => onRemoveDocument(index)}
-        />
-      ))}
-      {formState.errors.documents?.root && (
-        <p className="text-sm text-destructive">{formState.errors.documents.root.message}</p>
-      )}
-    </FieldSet>
-  );
+        {fields.map((field, index) => (
+          <DocumentRow
+            key={field.id}
+            control={control}
+            index={index}
+            usedTypes={usedTypes}
+            onRemove={() => onRemoveDocument(index)}
+          />
+        ))}
+        {formState.errors.documents?.root && (
+          <p className="text-sm text-destructive">{formState.errors.documents.root.message}</p>
+        )}
+      </FieldSet>
+    );
+  }
+
+  // step === 5 — Review: read-only snapshot of everything entered so far,
+  // built from live form state (not yet submitted).
+  return <ReviewStep control={control} />;
+}
+
+function ReviewStep({ control }: { control: Control<KycFormValues> }) {
+  const watched = useWatch({ control });
+  return <KycReviewSummary data={watched} />;
 }

@@ -11,7 +11,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   kycSchema,
   KycFormValues,
-  PERSONAL_FIELDS,
   STEP_FIELDS,
   ScannedKycData,
   DocumentTypeValue,
@@ -21,11 +20,9 @@ import { toast } from "sonner";
 import {
   emptyPerson,
   emptyAddress,
-  FAMILY_KEYS,
-  ADDRESS_KEYS,
-  EXTRA_FIELDS,
   STEP_META,
 } from "./kyc-form-config";
+import { buildKycFormData } from "./build-form-data";
 
 const has = (v: unknown) => typeof v === "string" && v.length > 0;
 
@@ -225,6 +222,7 @@ export function useKycForm() {
         complete: !!watched.photo && !!watched.signature,
       },
       { label: "Documents", complete: (watched.documents?.length ?? 0) > 0 },
+      { label: "Review", complete: false }, // only "complete" once actually submitted
     ],
     [watched],
   );
@@ -254,65 +252,7 @@ export function useKycForm() {
   const goToStep = (index: number) => setStep(index);
 
   function onValid(values: KycFormValues) {
-    const formData = new FormData();
-
-    PERSONAL_FIELDS.forEach(({ name }) =>
-      formData.append(name, values[name] ?? ""),
-    );
-    EXTRA_FIELDS.forEach((name) => formData.append(name, values[name]));
-
-    FAMILY_KEYS.forEach((key) => {
-      const person = values[key];
-      (["firstName", "middleName", "lastName"] as const).forEach((f) =>
-        formData.append(`${key}.${f}`, person?.[f] ?? ""),
-      );
-    });
-
-    ADDRESS_KEYS.forEach((section) =>
-      Object.entries(values[section]).forEach(([key, val]) =>
-        formData.append(`${section}.${key}`, val as string),
-      ),
-    );
-
-    formData.append("photo", values.photo);
-    formData.append("signature", values.signature);
-
-    values.documents.forEach((doc, i) => {
-      formData.append(`documents[${i}].type`, doc.type);
-      formData.append(`documents[${i}].format`, doc.format);
-      if (doc.format === "pdf" && doc.file) {
-        formData.append(`documents[${i}].file`, doc.file);
-      } else {
-        if (doc.front) formData.append(`documents[${i}].front`, doc.front);
-        if (doc.back) formData.append(`documents[${i}].back`, doc.back);
-      }
-      if (doc.idNumber)
-        formData.append(`documents[${i}].idNumber`, doc.idNumber);
-      if (doc.issueDate)
-        formData.append(`documents[${i}].issueDate`, doc.issueDate);
-      if (doc.expiryDate)
-        formData.append(`documents[${i}].expiryDate`, doc.expiryDate);
-      if (doc.informantFirstName)
-        formData.append(
-          `documents[${i}].informantFirstName`,
-          doc.informantFirstName,
-        );
-      if (doc.informantMiddleName)
-        formData.append(
-          `documents[${i}].informantMiddleName`,
-          doc.informantMiddleName,
-        );
-      if (doc.informantLastName)
-        formData.append(
-          `documents[${i}].informantLastName`,
-          doc.informantLastName,
-        );
-      if (doc.informantRelationship)
-        formData.append(
-          `documents[${i}].informantRelationship`,
-          doc.informantRelationship,
-        );
-    });
+    const formData = buildKycFormData(values);
 
     startTransition(async () => {
       const result = await submitKyc(state, formData);

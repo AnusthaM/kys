@@ -12,10 +12,10 @@ interface SectionCardProps {
 
 export function SectionCard({ step, icon: Icon, title, description, children }: SectionCardProps) {
   return (
-    <Card className="border-border/60 shadow-sm">
+    <Card className="border-border/60 shadow-sm transition-shadow duration-300 hover:shadow-md">
       <CardHeader className="gap-1">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary transition-transform duration-300">
             <Icon className="h-4 w-4" />
           </div>
           <div>

@@ -1,4 +1,4 @@
-import { UserRound, Users, MapPinned, ImagePlus, FileStack } from "lucide-react";
+import { UserRound, Users, MapPinned, ImagePlus, FileStack, ClipboardCheck } from "lucide-react";
 export const emptyPerson = { firstName: "", middleName: "", lastName: "" };
 export const emptyAddress = {
   country: "",
@@ -19,4 +19,5 @@ export const STEP_META = [
   { label: "Address", icon: MapPinned, title: "Address", description: "Permanent and current residence" },
   { label: "Photo & Signature", icon: ImagePlus, title: "Photo & Signature", description: "A clear photo of your face and your signature" },
   { label: "Documents", icon: FileStack, title: "Identity Documents", description: "At least one government-issued document" },
+  { label: "Review", icon: ClipboardCheck, title: "Review & Submit", description: "Check everything before you submit" },
 ];

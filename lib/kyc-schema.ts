@@ -206,6 +206,7 @@ export const STEP_FIELDS = [
   ["permanentAddress", "temporaryAddress"],
   ["photo", "signature"],
   ["documents"],
+  [],
 ] as const;
 
 export const MUNICIPALITY_OPTIONS = [

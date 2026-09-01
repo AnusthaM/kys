@@ -6,7 +6,7 @@ import { KycFormValues, DOCUMENT_TYPES } from "@/lib/kyc-schema";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Lock, FileText, ExternalLink } from "lucide-react";
-import { ZoomableImage } from "../zoomable-image";
+import { ZoomableImage } from "../common/zoomable-image";
 
 interface DocumentPreviewCardProps {
   control: Control<KycFormValues>;
