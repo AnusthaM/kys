@@ -143,10 +143,10 @@ export function SignatureField({ value, onChange }: SignatureFieldProps) {
 
   if (value) {
     return (
-      <Card className="flex items-center justify-between gap-3 p-4">
+      <Card className="flex items-center justify-between gap-3 border-border/60 p-4">
         <div className="flex items-center gap-3">
           {previewUrl ? (
-            <div className="relative h-16 w-40 overflow-hidden rounded border bg-white">
+            <div className="relative h-16 w-40 overflow-hidden rounded-lg border bg-white shadow-sm">
               <Image
                 src={previewUrl}
                 alt="Signature"
@@ -156,17 +156,21 @@ export function SignatureField({ value, onChange }: SignatureFieldProps) {
               />
             </div>
           ) : (
-            <div className="flex h-16 w-40 items-center justify-center rounded border bg-muted text-xs text-muted-foreground">
+            <div className="flex h-16 w-40 items-center justify-center rounded-lg border bg-muted text-xs text-muted-foreground">
               signature.pdf
             </div>
           )}
-          <span className="text-sm text-muted-foreground">{value.name}</span>
+          <div className="flex items-center gap-1.5">
+            <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+            <span className="text-sm text-muted-foreground">{value.name}</span>
+          </div>
         </div>
         <Button
           type="button"
           size="icon"
           variant="ghost"
           onClick={() => onChange(undefined)}
+          className="text-muted-foreground hover:text-destructive"
         >
           <X className="h-4 w-4" />
         </Button>
@@ -175,18 +179,27 @@ export function SignatureField({ value, onChange }: SignatureFieldProps) {
   }
 
   return (
-    <Card className="space-y-3 p-4">
-      <canvas
-        ref={canvasRef}
-        width={CANVAS_W}
-        height={CANVAS_H}
-        className="w-full touch-none rounded border bg-white"
-        style={{ aspectRatio: `${CANVAS_W}/${CANVAS_H}` }}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
-      />
+    <Card className="space-y-3 border-border/60 p-4">
+      <div className="relative overflow-hidden rounded-lg border bg-white shadow-inner">
+        <canvas
+          ref={canvasRef}
+          width={CANVAS_W}
+          height={CANVAS_H}
+          className="w-full touch-none"
+          style={{ aspectRatio: `${CANVAS_W}/${CANVAS_H}` }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
+        />
+        {!hasInk && (
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-muted-foreground/50">
+            <PenLine className="h-5 w-5" />
+            <span className="text-xs">Sign here</span>
+          </div>
+        )}
+        <div className="pointer-events-none absolute inset-x-6 bottom-8 border-b border-dashed border-muted-foreground/20" />
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex gap-1">
@@ -211,33 +224,35 @@ export function SignatureField({ value, onChange }: SignatureFieldProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex rounded-md border p-0.5 text-xs">
+          <div className="flex rounded-lg border bg-muted/40 p-0.5 text-xs">
             <button
               type="button"
               onClick={() => setFormat("image")}
-              className={`rounded px-2 py-1 ${format === "image" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+              className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
+                format === "image"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
             >
               JPEG
             </button>
             <button
               type="button"
               onClick={() => setFormat("pdf")}
-              className={`rounded px-2 py-1 ${format === "pdf" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+              className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
+                format === "pdf"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
             >
               PDF
             </button>
           </div>
-          <Button type="button" size="sm" onClick={save} disabled={!hasInk}>
+          <Button type="button" size="sm" onClick={save} disabled={!hasInk} className="shadow-sm">
             <Check className="mr-1.5 h-3.5 w-3.5" /> Use signature
           </Button>
         </div>
       </div>
-
-      {!hasInk && (
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <PenLine className="h-3.5 w-3.5" /> Draw your signature above
-        </p>
-      )}
     </Card>
   );
 }

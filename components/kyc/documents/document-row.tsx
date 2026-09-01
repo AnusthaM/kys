@@ -25,7 +25,7 @@ export function DocumentRow({ control, index, usedTypes, onRemove }: DocumentRow
   }
 
   return (
-    <div className="animate-in fade-in zoom-in-95 space-y-3 rounded-lg border p-4 duration-300 ease-out">
+    <div className="animate-in fade-in zoom-in-95 space-y-3 rounded-xl border border-border/60 bg-card p-4 shadow-sm duration-300 ease-out">
       <DocumentEntry control={control} index={index} usedTypes={usedTypes} onRemove={onRemove} />
       <DocumentExtraFields control={control} index={index} />
     </div>

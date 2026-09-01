@@ -22,9 +22,9 @@ export function DocumentEntry({ control, index, usedTypes, onRemove }: DocumentE
   const config = DOCUMENT_TYPES.find((d) => d.value === type);
 
   return (
-    <Card>
+    <Card className="border-border/60 shadow-sm">
       <CardContent className="space-y-4 pt-6">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start justify-between gap-3 border-b border-border/60 pb-4">
           <Controller
             name={`documents.${index}.type`}
             control={control}
@@ -46,7 +46,13 @@ export function DocumentEntry({ control, index, usedTypes, onRemove }: DocumentE
               </Field>
             )}
           />
-          <Button type="button" size="icon" variant="ghost" onClick={onRemove}>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={onRemove}
+            className="mt-0.5 shrink-0 text-muted-foreground hover:text-destructive"
+          >
             <X className="h-4 w-4" />
           </Button>
         </div>

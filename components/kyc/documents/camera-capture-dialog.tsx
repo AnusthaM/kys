@@ -2,7 +2,7 @@
 
 import { CameraCaptureDialogProps } from "@/lib/types";
 import { useEffect, useRef, useState } from "react";
-import { Camera, RotateCcw } from "lucide-react";
+import { Camera, RotateCcw, Check, AlertCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -112,33 +112,49 @@ export function CameraCaptureDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Take a photo</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Camera className="h-4 w-4 text-primary" /> Take a photo
+          </DialogTitle>
         </DialogHeader>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
-
-        {!preview ? (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            className="w-full rounded-md bg-black"
-          />
-        ) : (
-          <div className="relative aspect-video w-full">
-            <Image
-              src={preview}
-              alt="Captured"
-              className="rounded-md object-cover"
-              fill
-              unoptimized
-            />
+        {error && (
+          <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4 shrink-0" /> {error}
           </div>
         )}
 
+        <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black shadow-inner">
+          {!preview ? (
+            <>
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                className="h-full w-full object-cover"
+              />
+              {!error && (
+                <div className="pointer-events-none absolute inset-4 rounded-lg border-2 border-dashed border-white/40" />
+              )}
+            </>
+          ) : (
+            <>
+              <Image
+                src={preview}
+                alt="Captured"
+                className="object-cover"
+                fill
+                unoptimized
+              />
+              <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium text-white backdrop-blur">
+                <Check className="h-3 w-3" /> Captured
+              </div>
+            </>
+          )}
+        </div>
+
         <div className="flex justify-end gap-2">
           {!preview ? (
-            <Button onClick={takePhoto} disabled={!!error}>
+            <Button onClick={takePhoto} disabled={!!error} size="lg" className="shadow-sm">
               <Camera className="mr-2 h-4 w-4" /> Capture
             </Button>
           ) : (
@@ -146,7 +162,9 @@ export function CameraCaptureDialog({
               <Button variant="outline" onClick={retake}>
                 <RotateCcw className="mr-2 h-4 w-4" /> Retake
               </Button>
-              <Button onClick={confirmPhoto}>Use photo</Button>
+              <Button onClick={confirmPhoto} className="shadow-sm">
+                <Check className="mr-2 h-4 w-4" /> Use photo
+              </Button>
             </>
           )}
         </div>

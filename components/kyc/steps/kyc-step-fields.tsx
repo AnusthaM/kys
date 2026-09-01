@@ -86,31 +86,39 @@ export function KycStepFields({
     );
   }
 
-  if (step === 4) {
+    if (step === 4) {
     return (
       <FieldSet className="gap-3">
         <div className="flex items-center justify-between">
           <FieldLegend variant="label" className="sr-only">Documents</FieldLegend>
-          <Button type="button" variant="outline" size="sm" disabled={usedTypes.length >= DOCUMENT_TYPES.length} onClick={onAddDocument}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={usedTypes.length >= DOCUMENT_TYPES.length}
+            onClick={onAddDocument}
+          >
             <Plus className="mr-2 h-4 w-4" /> Add document
           </Button>
         </div>
 
         {fields.length === 0 && (
-          <p className="rounded-md border border-dashed py-6 text-center text-sm text-muted-foreground">
+          <p className="rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
             No documents added yet.
           </p>
         )}
 
-        {fields.map((field, index) => (
-          <DocumentRow
-            key={field.id}
-            control={control}
-            index={index}
-            usedTypes={usedTypes}
-            onRemove={() => onRemoveDocument(index)}
-          />
-        ))}
+        <div className="space-y-3">
+          {fields.map((field, index) => (
+            <DocumentRow
+              key={field.id}
+              control={control}
+              index={index}
+              usedTypes={usedTypes}
+              onRemove={() => onRemoveDocument(index)}
+            />
+          ))}
+        </div>
         {formState.errors.documents?.root && (
           <p className="text-sm text-destructive">{formState.errors.documents.root.message}</p>
         )}

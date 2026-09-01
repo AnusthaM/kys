@@ -20,26 +20,38 @@ export function StepProgress({ steps, current, onStepClick }: StepProgressProps)
                 type="button"
                 disabled={!isReachable}
                 onClick={() => isReachable && onStepClick(i)}
-                className="flex flex-col items-center gap-1.5 disabled:cursor-not-allowed"
+                className="group flex flex-col items-center gap-1.5 disabled:cursor-not-allowed"
               >
                 <div
                   className={cn(
-                    "flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-medium transition-colors",
+                    "flex h-7 w-7 items-center justify-center rounded-full border text-[11px] font-semibold transition-all duration-200",
                     isCurrent
-                      ? "border-primary bg-primary text-primary-foreground"
+                      ? "border-primary bg-primary text-primary-foreground shadow-sm ring-4 ring-primary/15"
                       : s.complete
-                        ? "border-primary/60 bg-primary/10 text-primary"
-                        : "border-border text-muted-foreground"
+                        ? "border-primary/50 bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground group-enabled:group-hover:border-primary/40"
                   )}
                 >
-                  {s.complete && !isCurrent ? <Check className="h-3 w-3" /> : i + 1}
+                  {s.complete && !isCurrent ? <Check className="h-3.5 w-3.5" /> : i + 1}
                 </div>
-                <span className={cn("hidden text-[11px] sm:block", isCurrent ? "text-foreground" : "text-muted-foreground")}>
+                <span
+                  className={cn(
+                    "hidden text-[11px] transition-colors sm:block",
+                    isCurrent ? "font-medium text-foreground" : "text-muted-foreground"
+                  )}
+                >
                   {s.label}
                 </span>
               </button>
               {i < steps.length - 1 && (
-                <div className={cn("mx-2 h-px flex-1 transition-colors", i < current ? "bg-primary" : "bg-border")} />
+                <div className="mx-2 h-px flex-1 overflow-hidden rounded-full bg-border">
+                  <div
+                    className={cn(
+                      "h-full bg-primary transition-all duration-300",
+                      i < current ? "w-full" : "w-0"
+                    )}
+                  />
+                </div>
               )}
             </div>
           );

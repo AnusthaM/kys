@@ -14,8 +14,11 @@ interface PersonNameFieldsProps {
 
 export function PersonNameFields({ control, prefix, label, optional }: PersonNameFieldsProps) {
   return (
-    <FieldSet className="gap-3">
-      <FieldLegend variant="label">{label}{optional ? " (optional)" : ""}</FieldLegend>
+    <FieldSet className="gap-3 rounded-xl border border-border/60 bg-muted/20 p-4">
+      <FieldLegend variant="label">
+        {label}
+        {optional ? <span className="ml-1.5 font-normal text-muted-foreground">(optional)</span> : ""}
+      </FieldLegend>
       <div className="grid gap-4 sm:grid-cols-3">
         <TextField control={control} name={`${prefix}.firstName`} label="First Name" />
         <TextField control={control} name={`${prefix}.middleName`} label="Middle Name" />

@@ -47,13 +47,13 @@ export function DocumentPreviewCard({
   const showBack = !!config?.requiresBack;
 
   return (
-    <Card className="space-y-3 p-4">
+    <Card className="space-y-3 border-border/60 bg-muted/20 p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">
+          <span className="text-sm font-semibold">
             {config?.label ?? doc.type}
           </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
             <Lock className="h-3 w-3" /> From scan
           </span>
         </div>
@@ -64,7 +64,7 @@ export function DocumentPreviewCard({
 
       {doc.format === "pdf" ? (
         <div className="flex items-center gap-3">
-          <div className="flex h-24 w-32 items-center justify-center gap-2 rounded border bg-muted p-2 text-xs text-muted-foreground">
+          <div className="flex h-24 w-32 items-center justify-center gap-2 rounded-lg border bg-background p-2 text-xs text-muted-foreground">
             <FileText className="h-4 w-4 shrink-0" />
             <span className="min-w-0 truncate">
               {doc.file?.name ?? "document.pdf"}
@@ -89,10 +89,10 @@ export function DocumentPreviewCard({
               <ZoomableImage
                 src={frontUrl}
                 alt="Document front"
-                className="h-24 w-32"
+                className="h-24 w-32 rounded-lg border"
               />
             ) : (
-              <div className="flex h-24 w-32 items-center justify-center rounded border text-xs text-muted-foreground">
+              <div className="flex h-24 w-32 items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground">
                 Not provided
               </div>
             )}
@@ -104,10 +104,10 @@ export function DocumentPreviewCard({
                 <ZoomableImage
                   src={backUrl}
                   alt="Document back"
-                  className="h-24 w-32"
+                  className="h-24 w-32 rounded-lg border"
                 />
               ) : (
-                <div className="flex h-24 w-32 items-center justify-center rounded border text-xs text-muted-foreground">
+                <div className="flex h-24 w-32 items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground">
                   Not provided
                 </div>
               )}
@@ -118,7 +118,7 @@ export function DocumentPreviewCard({
 
       {doc.idNumber && (
         <p className="text-xs text-muted-foreground">
-          ID Number: <span className="text-foreground">{doc.idNumber}</span>
+          ID Number: <span className="font-medium text-foreground">{doc.idNumber}</span>
         </p>
       )}
     </Card>

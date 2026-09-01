@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { KycFormValues, DOCUMENT_TYPES } from "@/lib/kyc-schema";
 import { Button } from "@/components/ui/button";
-import { FileText, ExternalLink } from "lucide-react";
+import { FileText, ExternalLink, User, Users, MapPin, ImageIcon, FolderOpen } from "lucide-react";
 import { ZoomableImage } from "../common/zoomable-image";
 import { SummarySection, SummaryRow } from "./summary-section";
 
@@ -16,9 +16,6 @@ type Address = {
   ward_no?: string;
 };
 type Rows = [string, string | undefined][];
-// useWatch({ control }) returns a *deep* partial (nested object fields become
-// optional too), which a shallow Partial<KycFormValues> can't express — this
-// mirrors that shape. File is treated as a leaf so it isn't recursed into.
 type DeepPartial<T> = T extends File
   ? T
   : T extends (infer U)[]
@@ -59,14 +56,14 @@ function FileThumb({ file, label }: { file: File | undefined; label: string }) {
   const url = useObjectUrl(file);
   if (!file) return null;
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       <p className="text-xs text-muted-foreground">{label}</p>
       {file.type.startsWith("image/") && url ? (
-        <ZoomableImage src={url} alt={label} className="h-24 w-32" />
+        <ZoomableImage src={url} alt={label} className="h-24 w-32 rounded-lg border" />
       ) : (
         <div className="flex items-center gap-2">
-          <div className="flex h-24 w-32 items-center justify-center gap-2 rounded border bg-muted text-xs text-muted-foreground">
-            <FileText className="h-4 w-4" /> <span className="min-w-0 truncate">{file.name}</span>
+          <div className="flex h-24 w-32 items-center justify-center gap-2 rounded-lg border bg-muted/50 text-xs text-muted-foreground">
+            <FileText className="h-4 w-4" /> <span className="min-w-0 truncate px-1">{file.name}</span>
           </div>
           {url && (
             <Button type="button" variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
@@ -80,25 +77,23 @@ function FileThumb({ file, label }: { file: File | undefined; label: string }) {
 }
 
 const AddressBlock = ({ title, addr }: { title: string; addr?: Address }) => (
-  <div className="space-y-2">
-    <p className="text-xs font-medium text-muted-foreground">{title}</p>
-    <RowList
-      rows={[
-        ["Country", addr?.country],
-        ["Province", addr?.province],
-        ["District", addr?.district],
-        ["City", addr?.city],
-        ["Ward No.", addr?.ward_no],
-      ]}
-    />
+  <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-4">
+    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+    <div className="grid grid-cols-2 gap-3">
+      <RowList
+        rows={[
+          ["Country", addr?.country],
+          ["Province", addr?.province],
+          ["District", addr?.district],
+          ["City", addr?.city],
+          ["Ward No.", addr?.ward_no],
+        ]}
+      />
+    </div>
   </div>
 );
 
 interface KycReviewSummaryProps {
-  // DeepPartial because the pre-submit Review step reads live, possibly-
-  // incomplete form state (useWatch without a name deep-partials nested
-  // objects too); the post-submit summary passes fully validated
-  // KycFormValues, which also satisfies DeepPartial<KycFormValues>.
   data: DeepPartial<KycFormValues>;
 }
 
@@ -131,36 +126,38 @@ export function KycReviewSummary({ data }: KycReviewSummaryProps) {
 
   return (
     <div className="space-y-6">
-      <SummarySection title="Personal Details">
+      <SummarySection title="Personal Details" icon={User}>
         <div className="grid grid-cols-2 gap-4">
           <RowList rows={personalRows} />
         </div>
       </SummarySection>
 
-      <SummarySection title="Family Details">
+      <SummarySection title="Family Details" icon={Users}>
         <div className="grid grid-cols-2 gap-4">
           <RowList rows={familyRows} />
         </div>
       </SummarySection>
 
-      <SummarySection title="Address">
-        <div className="grid grid-cols-2 gap-6">
+      <SummarySection title="Address" icon={MapPin}>
+        <div className="grid grid-cols-2 gap-4">
           <AddressBlock title="Permanent" addr={data.permanentAddress} />
           <AddressBlock title="Temporary" addr={data.temporaryAddress} />
         </div>
       </SummarySection>
 
-      <SummarySection title="Photo & Signature">
+      <SummarySection title="Photo & Signature" icon={ImageIcon}>
         <div className="flex gap-6">
           <FileThumb file={data.photo} label="Photo" />
           <FileThumb file={data.signature} label="Signature" />
         </div>
       </SummarySection>
 
-      <SummarySection title={`Documents (${documents.length})`}>
-        <div className="space-y-4">
+      <SummarySection title={`Documents (${documents.length})`} icon={FolderOpen}>
+        <div className="space-y-3">
           {documents.length === 0 && (
-            <p className="text-sm text-muted-foreground">No documents added.</p>
+            <p className="rounded-lg border border-dashed py-6 text-center text-sm text-muted-foreground">
+              No documents added.
+            </p>
           )}
           {documents.map((doc, i) => {
             const docRows: Rows = [
@@ -174,9 +171,9 @@ export function KycReviewSummary({ data }: KycReviewSummaryProps) {
             });
 
             return (
-              <div key={i} className="space-y-2 border-t pt-4 first:border-t-0 first:pt-0">
+              <div key={i} className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-4">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">
+                  <p className="text-sm font-semibold">
                     {DOCUMENT_TYPES.find((d) => d.value === doc.type)?.label ?? doc.type}
                   </p>
                   {doc.idNumber && (

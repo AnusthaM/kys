@@ -16,83 +16,85 @@ export function DocumentExtraFields({ control, index }: DocumentExtraFieldsProps
   if (!config) return null;
 
   return (
-    <FieldGroup className="grid gap-4 grid-cols-2">
-      <Controller
-        name={`documents.${index}.idNumber`}
-        control={control}
-        render={({ field, fieldState }) => (
-          <Field data-invalid={fieldState.invalid}>
-            <FieldLabel>{config.label} Number</FieldLabel>
-            <Input {...field} value={field.value ?? ""} />
-            {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-          </Field>
+    <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 p-3">
+      <FieldGroup className="grid grid-cols-2 gap-3">
+        <Controller
+          name={`documents.${index}.idNumber`}
+          control={control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel>{config.label} Number</FieldLabel>
+              <Input {...field} value={field.value ?? ""} />
+              {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+            </Field>
+          )}
+        />
+
+        {type === "drivers_license" && (
+          <>
+            <Controller
+              name={`documents.${index}.issueDate`}
+              control={control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel>Issue Date</FieldLabel>
+                  <Input {...field} value={field.value ?? ""} type="date" />
+                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                </Field>
+              )}
+            />
+            <Controller
+              name={`documents.${index}.expiryDate`}
+              control={control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel>Expiry Date</FieldLabel>
+                  <Input {...field} value={field.value ?? ""} type="date" />
+                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                </Field>
+              )}
+            />
+          </>
         )}
-      />
 
-      {type === "drivers_license" && (
-        <>
-          <Controller
-            name={`documents.${index}.issueDate`}
-            control={control}
-            render={({ field, fieldState }) => (
-              <Field data-invalid={fieldState.invalid}>
-                <FieldLabel>Issue Date</FieldLabel>
-                <Input {...field} value={field.value ?? ""} type="date" />
-                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-              </Field>
-            )}
-          />
-          <Controller
-            name={`documents.${index}.expiryDate`}
-            control={control}
-            render={({ field, fieldState }) => (
-              <Field data-invalid={fieldState.invalid}>
-                <FieldLabel>Expiry Date</FieldLabel>
-                <Input {...field} value={field.value ?? ""} type="date" />
-                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-              </Field>
-            )}
-          />
-        </>
-      )}
-
-      {type === "birth_certificate" && (
-        <>
-          <Controller
-            name={`documents.${index}.informantFirstName`}
-            control={control}
-            render={({ field, fieldState }) => (
-              <Field data-invalid={fieldState.invalid}>
-                <FieldLabel>Informant First Name</FieldLabel>
-                <Input {...field} value={field.value ?? ""} />
-                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-              </Field>
-            )}
-          />
-          <Controller
-            name={`documents.${index}.informantLastName`}
-            control={control}
-            render={({ field, fieldState }) => (
-              <Field data-invalid={fieldState.invalid}>
-                <FieldLabel>Informant Last Name</FieldLabel>
-                <Input {...field} value={field.value ?? ""} />
-                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-              </Field>
-            )}
-          />
-          <Controller
-            name={`documents.${index}.informantRelationship`}
-            control={control}
-            render={({ field, fieldState }) => (
-              <Field data-invalid={fieldState.invalid}>
-                <FieldLabel>Informant Relationship</FieldLabel>
-                <Input {...field} value={field.value ?? ""} placeholder="e.g. Father" />
-                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-              </Field>
-            )}
-          />
-        </>
-      )}
-    </FieldGroup>
+        {type === "birth_certificate" && (
+          <>
+            <Controller
+              name={`documents.${index}.informantFirstName`}
+              control={control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel>Informant First Name</FieldLabel>
+                  <Input {...field} value={field.value ?? ""} />
+                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                </Field>
+              )}
+            />
+            <Controller
+              name={`documents.${index}.informantLastName`}
+              control={control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel>Informant Last Name</FieldLabel>
+                  <Input {...field} value={field.value ?? ""} />
+                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                </Field>
+              )}
+            />
+            <Controller
+              name={`documents.${index}.informantRelationship`}
+              control={control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel>Informant Relationship</FieldLabel>
+                  <Input {...field} value={field.value ?? ""} placeholder="e.g. Father" />
+                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                </Field>
+              )}
+            />
+          </>
+        )}
+      </FieldGroup>
+    </div>
   );
 }
