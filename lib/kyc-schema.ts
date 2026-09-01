@@ -1,18 +1,41 @@
 import { z } from "zod";
 
-function isOneOf<T extends string>(values: readonly T[], value: string): boolean {
-  return (values as readonly string[]).includes(value);
+const isOneOf = <T extends string>(values: readonly T[], value: string) =>
+  (values as readonly string[]).includes(value);
+
+const isValidDate = (val: string) => !Number.isNaN(new Date(val).getTime());
+
+const issue = (ctx: z.RefinementCtx, path: string, message: string) =>
+  ctx.addIssue({ code: "custom", message, path: [path] });
+
+function validateFile(
+  ctx: z.RefinementCtx,
+  schema: z.ZodType<File>,
+  value: File | undefined,
+  path: string,
+  requiredMessage: string,
+) {
+  const result = schema.safeParse(value);
+  if (!result.success) {
+    issue(ctx, path, result.error.issues[0]?.message ?? requiredMessage);
+  }
 }
 
 const signatureFileSchema = z
   .instanceof(File)
   .refine((f) => f.size <= 5 * 1024 * 1024, "Max file size is 5MB")
-  .refine((f) => ["image/jpeg", "application/pdf"].includes(f.type), "Signature must be JPEG or PDF");
+  .refine(
+    (f) => ["image/jpeg", "application/pdf"].includes(f.type),
+    "Signature must be JPEG or PDF",
+  );
 
 const imageFileSchema = z
   .instanceof(File)
   .refine((f) => f.size <= 5 * 1024 * 1024, "Max file size is 5MB")
-  .refine((f) => ["image/jpeg", "image/png"].includes(f.type), "Only JPG or PNG allowed");
+  .refine(
+    (f) => ["image/jpeg", "image/png"].includes(f.type),
+    "Only JPG or PNG allowed",
+  );
 
 const pdfFileSchema = z
   .instanceof(File)
@@ -37,6 +60,38 @@ export const DOCUMENT_FORMATS = [
 
 export type DocumentFormat = (typeof DOCUMENT_FORMATS)[number]["value"];
 
+/** Validates issueDate/expiryDate on a document: presence, validity, future/expiry bounds, and ordering. */
+function validateDocumentDates(val: z.infer<typeof documentEntrySchema>, ctx: z.RefinementCtx) {
+  if (val.type !== "drivers_license") return;
+
+  const checkDate = (path: "issueDate" | "expiryDate", requiredMsg: string) => {
+    const raw = val[path];
+    if (!raw) {
+      issue(ctx, path, requiredMsg);
+      return null;
+    }
+    if (!isValidDate(raw)) {
+      issue(ctx, path, `Enter a valid ${path === "issueDate" ? "issue" : "expiry"} date`);
+      return null;
+    }
+    return new Date(raw);
+  };
+
+  const issueDate = checkDate("issueDate", "Issue date is required");
+  if (issueDate && issueDate > new Date()) {
+    issue(ctx, "issueDate", "Issue date can't be in the future");
+  }
+
+  const expiryDate = checkDate("expiryDate", "Expiry date is required");
+  if (expiryDate && expiryDate < new Date()) {
+    issue(ctx, "expiryDate", "This license has expired");
+  }
+
+  if (issueDate && expiryDate && expiryDate <= issueDate) {
+    issue(ctx, "expiryDate", "Expiry date must be after issue date");
+  }
+}
+
 const documentEntrySchema = z
   .object({
     type: z.string().min(1, "Document type is required"),
@@ -55,30 +110,21 @@ const documentEntrySchema = z
   })
   .superRefine((val, ctx) => {
     const config = DOCUMENT_TYPES.find((d) => d.value === val.type);
-
     if (!config) {
-      ctx.addIssue({ code: "custom", message: "Select a valid document type", path: ["type"] });
+      issue(ctx, "type", "Select a valid document type");
       return;
     }
 
     if (val.format === "pdf") {
-      const result = pdfFileSchema.safeParse(val.file);
-      if (!result.success) {
-        ctx.addIssue({ code: "custom", message: result.error.issues[0]?.message ?? "PDF is required", path: ["file"] });
+      validateFile(ctx, pdfFileSchema, val.file, "file", "PDF is required");
+    } else {
+      validateFile(ctx, imageFileSchema, val.front, "front", "Front image is required");
+      if (config.requiresBack) {
+        validateFile(ctx, imageFileSchema, val.back, "back", "Back image is required");
       }
-      return;
     }
 
-    const frontResult = imageFileSchema.safeParse(val.front);
-    if (!frontResult.success) {
-      ctx.addIssue({ code: "custom", message: frontResult.error.issues[0]?.message ?? "Front image is required", path: ["front"] });
-    }
-    if (config.requiresBack) {
-      const backResult = imageFileSchema.safeParse(val.back);
-      if (!backResult.success) {
-        ctx.addIssue({ code: "custom", message: backResult.error.issues[0]?.message ?? "Back image is required", path: ["back"] });
-      }
-    }
+    validateDocumentDates(val, ctx);
   });
 
 const genderValues = ["male", "female", "rather-not-say"] as const;
@@ -107,49 +153,72 @@ const optionalPersonSchema = z.object({
   lastName: z.string().optional(),
 });
 
-export const kycSchema = z.object({
-  firstName: z.string().min(1, "First name is required"),
-  middleName: z.string().optional(),
-  lastName: z.string().min(1, "Last name is required"),
-  father: requiredPersonSchema,
-  mother: requiredPersonSchema,
-  grandFather: optionalPersonSchema,
-  grandMother: optionalPersonSchema,
-  dob: z.string().min(1, "Date of birth is required"),
-  email: z.email("Enter a valid email address").optional(),
-  phone: z.string().min(7, "Enter a valid phone number"),
-  nationality: z.string().min(1, "Nationality is required"),
-  gender: z.string().refine((v) => isOneOf(genderValues, v), "Select a gender"),
-  martial_status: z.string().refine((v) => isOneOf(maritalValues, v), "Select a marital status"),
-  occupation: z.string().refine((v) => isOneOf(occupationValues, v), "Select an occupation"),
-  spouseFirstName: z.string().optional(),
-  spouseMiddleName: z.string().optional(),
-  spouseLastName: z.string().optional(),
-  spouseAge: z.string().optional(),
-  permanentAddress: addressSchema,
-  temporaryAddress: addressSchema,
-  photo: z.instanceof(File, { message: "Photo is required" }),
-  signature: signatureFileSchema,
-  documents: z.array(documentEntrySchema).min(1, "Add at least one document"),
-}).superRefine((val, ctx) => {
-  if (val.martial_status === "married") {
-    if (!val.spouseFirstName) {
-      ctx.addIssue({ code: "custom", message: "Spouse first name is required", path: ["spouseFirstName"] });
-    }
-    if (!val.spouseLastName) {
-      ctx.addIssue({ code: "custom", message: "Spouse last name is required", path: ["spouseLastName"] });
-    }
+const dobSchema = z
+  .string()
+  .min(1, "Date of birth is required")
+  .refine(isValidDate, "Enter a valid date")
+  .refine((val) => new Date(val) <= new Date(), "Date of birth can't be in the future")
+  .refine((val) => {
+    const age = (Date.now() - new Date(val).getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+    return age >= 18;
+  }, "You must be at least 18 years old")
+  .refine((val) => new Date(val) >= new Date("1900-01-01"), "Enter a realistic date of birth");
+
+const isValidAge = (val: string, min: number, max: number) =>
+  /^\d+$/.test(val) && Number(val) >= min && Number(val) <= max;
+
+const spouseAgeSchema = z
+  .string()
+  .optional()
+  .refine((val) => !val || /^\d+$/.test(val), "Age must be a number")
+  .refine((val) => !val || isValidAge(val, 18, 120), "Enter a valid age");
+
+export const kycSchema = z
+  .object({
+    firstName: z.string().min(1, "First name is required"),
+    middleName: z.string().optional(),
+    lastName: z.string().min(1, "Last name is required"),
+    father: requiredPersonSchema,
+    mother: requiredPersonSchema,
+    grandFather: optionalPersonSchema,
+    grandMother: optionalPersonSchema,
+    dob: dobSchema,
+    email: z.union([z.literal(""), z.email("Enter a valid email address")]).optional(),
+    phone: z.string().min(7, "Enter a valid phone number"),
+    nationality: z.string().min(1, "Nationality is required"),
+    gender: z.string().refine((v) => isOneOf(genderValues, v), "Select a gender"),
+    martial_status: z.string().refine((v) => isOneOf(maritalValues, v), "Select a marital status"),
+    occupation: z.string().refine((v) => isOneOf(occupationValues, v), "Select an occupation"),
+    spouseFirstName: z.string().optional(),
+    spouseMiddleName: z.string().optional(),
+    spouseLastName: z.string().optional(),
+    spouseAge: spouseAgeSchema,
+    permanentAddress: addressSchema,
+    temporaryAddress: addressSchema,
+    photo: z.instanceof(File, { message: "Photo is required" }),
+    signature: signatureFileSchema,
+    documents: z.array(documentEntrySchema).min(1, "Add at least one document"),
+  })
+  .superRefine((val, ctx) => {
+    if (val.martial_status !== "married") return;
+
+    if (!val.spouseFirstName) issue(ctx, "spouseFirstName", "Spouse first name is required");
+    if (!val.spouseLastName) issue(ctx, "spouseLastName", "Spouse last name is required");
+
     if (!val.spouseAge) {
-      ctx.addIssue({ code: "custom", message: "Spouse age is required", path: ["spouseAge"] });
-    } else if (!/^\d+$/.test(val.spouseAge) || Number(val.spouseAge) < 18) {
-      ctx.addIssue({ code: "custom", message: "Enter a valid spouse age (18+)", path: ["spouseAge"] });
+      issue(ctx, "spouseAge", "Spouse age is required");
+    } else if (!isValidAge(val.spouseAge, 18, 120)) {
+      issue(ctx, "spouseAge", "Enter a valid spouse age (18+)");
     }
-  }
-});
+  });
 
 export type KycFormValues = z.infer<typeof kycSchema>;
 
-export const PERSONAL_FIELDS: { name: "firstName" | "middleName" | "lastName" | "dob" | "email" | "phone" | "nationality"; label: string; type?: string }[] = [
+export const PERSONAL_FIELDS: {
+  name: "firstName" | "middleName" | "lastName" | "dob" | "email" | "phone" | "nationality";
+  label: string;
+  type?: string;
+}[] = [
   { name: "firstName", label: "First Name" },
   { name: "middleName", label: "Middle Name" },
   { name: "lastName", label: "Last Name" },
@@ -159,31 +228,50 @@ export const PERSONAL_FIELDS: { name: "firstName" | "middleName" | "lastName" | 
   { name: "nationality", label: "Nationality" },
 ];
 
-export const FAMILY_GROUPS: { key: "father" | "mother" | "grandFather" | "grandMother"; label: string; optional?: boolean }[] = [
+export const FAMILY_GROUPS: {
+  key: "father" | "mother" | "grandFather" | "grandMother";
+  label: string;
+  optional?: boolean;
+}[] = [
   { key: "father", label: "Father's Details" },
   { key: "mother", label: "Mother's Details" },
   { key: "grandFather", label: "Grandfather's Details", optional: true },
   { key: "grandMother", label: "Grandmother's Details", optional: true },
 ];
 
-export const SELECT_FIELDS: { name: "gender" | "martial_status" | "occupation"; label: string; options: { value: string; label: string }[] }[] = [
+export const SELECT_FIELDS: {
+  name: "gender" | "martial_status" | "occupation";
+  label: string;
+  options: { value: string; label: string }[];
+}[] = [
   {
-    name: "gender", label: "Gender",
-    options: [{ value: "male", label: "Male" }, { value: "female", label: "Female" }, { value: "rather-not-say", label: "Rather not say" }],
-  },
-  {
-    name: "martial_status", label: "Marital Status",
+    name: "gender",
+    label: "Gender",
     options: [
-      { value: "single", label: "Single" }, { value: "married", label: "Married" },
-      { value: "divorced", label: "Divorced" }, { value: "widowed", label: "Widowed" },
+      { value: "male", label: "Male" },
+      { value: "female", label: "Female" },
       { value: "rather-not-say", label: "Rather not say" },
     ],
   },
   {
-    name: "occupation", label: "Occupation",
+    name: "martial_status",
+    label: "Marital Status",
     options: [
-      { value: "employed", label: "Employed" }, { value: "unemployed", label: "Unemployed" },
-      { value: "student", label: "Student" }, { value: "self-employed", label: "Self-employed" },
+      { value: "single", label: "Single" },
+      { value: "married", label: "Married" },
+      { value: "divorced", label: "Divorced" },
+      { value: "widowed", label: "Widowed" },
+      { value: "rather-not-say", label: "Rather not say" },
+    ],
+  },
+  {
+    name: "occupation",
+    label: "Occupation",
+    options: [
+      { value: "employed", label: "Employed" },
+      { value: "unemployed", label: "Unemployed" },
+      { value: "student", label: "Student" },
+      { value: "self-employed", label: "Self-employed" },
     ],
   },
 ];
@@ -236,7 +324,6 @@ export interface ScannedKycData {
   grandFather?: Partial<ScannedPerson>;
   grandMother?: Partial<ScannedPerson>;
 
-  // document-specific identifiers, only some of which apply per documentType
   panNo?: string;
   licenseNo?: string;
   passportNo?: string;
@@ -247,7 +334,6 @@ export interface ScannedKycData {
   expiryDate?: string;
   contactNo?: string;
 
-  // birth certificate only
   informant?: Partial<ScannedPerson>;
   informantRelationship?: string;
 
