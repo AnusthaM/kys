@@ -12,15 +12,39 @@ import { STEP_META } from "./kyc-config/kyc-form-config";
 
 export function KycForm() {
   const {
-    control, setValue, formState, handleSubmit, onValid, onInvalid,
-    fields, append, remove, usedTypes,
-    step, isLastStep, isPending, showScan, setShowScan,
-    stepStatus, goNext, goBack, goToStep, applyScannedData,
-    submittedData, submissionId, startOver,
+    control,
+    setValue,
+    formState,
+    handleSubmit,
+    onValid,
+    onInvalid,
+    fields,
+    append,
+    remove,
+    usedTypes,
+    step,
+    isLastStep,
+    isPending,
+    showScan,
+    setShowScan,
+    stepStatus,
+    goNext,
+    goBack,
+    goToStep,
+    applyScannedData,
+    submittedData,
+    submissionId,
+    startOver,
   } = useKycForm();
 
   if (submittedData) {
-    return <KycSubmissionSummary data={submittedData} submissionId={submissionId} onStartOver={startOver} />;
+    return (
+      <KycSubmissionSummary
+        data={submittedData}
+        submissionId={submissionId}
+        onStartOver={startOver}
+      />
+    );
   }
 
   const meta = STEP_META[step];
@@ -34,7 +58,9 @@ export function KycForm() {
             <ShieldCheck className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">Identity Verification</h1>
+            <h1 className="text-lg font-semibold tracking-tight">
+              Identity Verification
+            </h1>
             <p className="text-sm text-muted-foreground">
               A few quick steps to confirm it&apos;s really you.
             </p>
@@ -45,13 +71,24 @@ export function KycForm() {
         <div className="rounded-2xl border bg-card shadow-sm">
           {showScan ? (
             <div className="p-6 sm:p-8">
-              <ScanStep onScanned={applyScannedData} onSkip={() => setShowScan(false)} />
+              <ScanStep
+                onScanned={applyScannedData}
+                onSkip={() => setShowScan(false)}
+              />
             </div>
           ) : (
             <div className="p-6 sm:p-8">
-              <StepProgress steps={stepStatus} current={step} onStepClick={goToStep} />
+              <StepProgress
+                steps={stepStatus}
+                current={step}
+                onStepClick={goToStep}
+                disabled={isPending}
+              />
 
-              <form onSubmit={(e) => e.preventDefault()} className="space-y-6 pt-6">
+              <form
+                onSubmit={(e) => e.preventDefault()}
+                className="space-y-6 pt-6"
+              >
                 <div
                   key={step}
                   className="animate-in fade-in slide-in-from-bottom-1 duration-300"
@@ -80,7 +117,7 @@ export function KycForm() {
                     type="button"
                     variant="outline"
                     onClick={goBack}
-                    disabled={step === 0}
+                    disabled={step === 0 || isPending}
                     className="shrink-0"
                   >
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back
@@ -97,7 +134,12 @@ export function KycForm() {
                       {isPending ? "Submitting..." : "Submit for Verification"}
                     </Button>
                   ) : (
-                    <Button type="button" onClick={goNext} size="lg" className="flex-1 shadow-sm">
+                    <Button
+                      type="button"
+                      onClick={goNext}
+                      size="lg"
+                      className="flex-1 shadow-sm"
+                    >
                       Next <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   )}

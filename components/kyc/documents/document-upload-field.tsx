@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Camera, Upload, X, FileText, CheckCircle2 } from "lucide-react";
 import { CameraCaptureDialog } from "./camera-capture-dialog";
@@ -13,12 +13,29 @@ interface DocumentUploadFieldProps {
   accept?: string;
 }
 
+function useObjectUrl(file: File | undefined | null) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!file) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing local preview state to a browser File
+      setUrl(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+
+  return url;
+}
+
 export function DocumentUploadField({ value, onChange, allowCamera, accept = "image/*,.pdf" }: DocumentUploadFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
-  // --- Derived state: Generate preview URL for image files ---
-  const previewUrl = value && value.type.startsWith("image/") ? URL.createObjectURL(value) : null;
+  // --- Preview URL, created once per file and revoked on change/unmount ---
+  const previewUrl = useObjectUrl(value?.type.startsWith("image/") ? value : null);
 
   function handleDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();

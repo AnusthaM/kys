@@ -33,6 +33,7 @@ function useObjectUrl(file: File | undefined | null) {
 export function DocumentPreviewCard({
   control,
   index,
+  
 }: DocumentPreviewCardProps) {
   const doc = useWatch({ control, name: `documents.${index}` });
   const config = DOCUMENT_TYPES.find((d) => d.value === doc?.type);
@@ -57,9 +58,12 @@ export function DocumentPreviewCard({
             <Lock className="h-3 w-3" /> From scan
           </span>
         </div>
-        <span className="text-xs text-muted-foreground">
-          {doc.format === "pdf" ? "PDF" : "JPEG / PNG"}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground">
+            {doc.format === "pdf" ? "PDF" : "JPEG / PNG"}
+          </span>
+          
+        </div>
       </div>
 
       {doc.format === "pdf" ? (
@@ -118,7 +122,8 @@ export function DocumentPreviewCard({
 
       {doc.idNumber && (
         <p className="text-xs text-muted-foreground">
-          ID Number: <span className="font-medium text-foreground">{doc.idNumber}</span>
+          ID Number:{" "}
+          <span className="font-medium text-foreground">{doc.idNumber}</span>
         </p>
       )}
     </Card>

@@ -53,7 +53,6 @@ export function useKycForm() {
     reset,
     setValue,
     trigger,
-    getValues,
   } = useForm<KycFormValues>({
     resolver: zodResolver(kycSchema),
     mode: "onBlur",
@@ -184,7 +183,7 @@ export function useKycForm() {
       front: undefined,
       back: undefined,
       file: undefined,
-      fromScan: false, // explicit — never locked
+      fromScan: false, 
     });
   }
 
@@ -228,26 +227,13 @@ export function useKycForm() {
   );
 
   async function goNext() {
-    const valid = await trigger(STEP_FIELDS[step] as never, {
-      shouldFocus: true,
-    });
-    if (!valid) return;
+  const valid = await trigger(STEP_FIELDS[step] as never, {
+    shouldFocus: true,
+  });
+  if (!valid) return;
 
-    if (step === 0) {
-      const values = getValues();
-      if (values.martial_status === "married") {
-        const missingSpouseInfo =
-          !values.spouseFirstName ||
-          !values.spouseLastName ||
-          !values.spouseAge;
-        if (missingSpouseInfo) {
-          toast.error("Please fill in spouse details before continuing.");
-          return;
-        }
-      }
-    }
-    setStep((s) => Math.min(s + 1, STEP_META.length - 1));
-  }
+  setStep((s) => Math.min(s + 1, STEP_META.length - 1));
+}
   const goBack = () => setStep((s) => Math.max(s - 1, 0));
   const goToStep = (index: number) => setStep(index);
 

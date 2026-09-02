@@ -5,15 +5,16 @@ interface StepProgressProps {
   steps: { label: string; complete: boolean }[];
   current: number;
   onStepClick: (index: number) => void;
+  disabled?: boolean;
 }
 
-export function StepProgress({ steps, current, onStepClick }: StepProgressProps) {
+export function StepProgress({ steps, current, onStepClick, disabled }: StepProgressProps) {
   return (
     <div className="sticky top-0 z-10 -mx-8 mb-2 border-b bg-background/95 px-8 py-4 backdrop-blur supports-backdrop-filter:bg-background/80">
       <div className="mx-auto flex max-w-2xl items-center">
         {steps.map((s, i) => {
           const isCurrent = i === current;
-          const isReachable = i <= current || s.complete;
+          const isReachable = !disabled && (i <= current || s.complete);
           return (
             <div key={s.label} className="flex flex-1 items-center last:flex-none">
               <button
