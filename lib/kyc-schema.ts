@@ -183,7 +183,7 @@ export const kycSchema = z
     grandFather: optionalPersonSchema,
     grandMother: optionalPersonSchema,
     dob: dobSchema,
-    email: z.union([z.literal(""), z.email("Enter a valid email address")]).optional(),
+    email: z.email().min(1, "Email is required"),
     phone: z.string().min(7, "Enter a valid phone number"),
     nationality: z.string().min(1, "Nationality is required"),
     gender: z.string().refine((v) => isOneOf(genderValues, v), "Select a gender"),
