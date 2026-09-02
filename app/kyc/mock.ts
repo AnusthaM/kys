@@ -50,7 +50,7 @@ export const MOCK_PROFILES: Record<DocumentTypeValue, ScannedKycData> = {
     licenseNo: "01-06-00987654",
 
     issueDate: "2021-08-15",
-    expiryDate: "2026-08-14",
+    expiryDate: "2027-08-14",
 
     citizenshipNo: "45-02-96-67890",
 
